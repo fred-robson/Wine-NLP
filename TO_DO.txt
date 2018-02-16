@@ -1,0 +1,4 @@
+- Tokenize descriptions
+- Have a nice data pipeline
+- Build basic RNN 
+- Naive Bayes
