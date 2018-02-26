@@ -1,39 +1,16 @@
-#Runs Naive Bayes as a baseline
-import pandas as pd
+'''
+Implements Naive Bayes to run as a baseline for the wine project
+
+'''
+from data_utils import data_utils
 import numpy as np
 from collections import Counter,defaultdict
 from tqdm import tqdm
 from sklearn.metrics import confusion_matrix,f1_score
 
-train_data_file = "./data/train_utf.pkl"  
-dev_data_file = "./data/dev_utf.pkl"
-test_data_file = "./data/test_utf.pkl"
-X_cat = "description"
 ALPHA_RANGE = [1,2,5,10]
 
 
-def load_data(max_len=100):
-	'''
-	Loads the data from the pickle file
-	returns: train_data,dev_data,test_data
-	'''
-	loaded_data = []
-	for filename in [train_data_file,dev_data_file,test_data_file]:
-		data_frame = pd.read_pickle(filename)
-		if max_len == None: loaded_data.append(data_frame)
-		else: loaded_data.append(data_frame[:max_len])
-	return loaded_data
-
-def gen_dicts(X_train,Y_train):
-	doc_counts = defaultdict(int)
-	word_counts = defaultdict(lambda: defaultdict(int))
-	for desc,label in zip(X_train,Y_train):
-		#skips the blanks
-		if type(label)!=str: continue
-		doc_counts[label]+=1
-		for w in desc: 
-			word_counts[label][w]+=1 
-	return doc_counts,word_counts
 
 def classify(words,doc_counts,word_counts,len_vocab,alpha):
 	'''
@@ -63,13 +40,7 @@ def classify(words,doc_counts,word_counts,len_vocab,alpha):
 		all_LLs[label] = log_likelihood
 
 	return max(all_LLs,key=all_LLs.get)
-
-def get_len_vocab(train,dev,test):
-	Vocab = set()
-	for data in [train,dev,test]:
-		for index, row in data.iterrows():
-				Vocab|=set(row[X_cat])
-	return len(Vocab)			
+		
 
 def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha):
 	'''
@@ -85,7 +56,7 @@ def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha):
 		Y_pred.append(pred)
 		if pred == true_label: correct+=1
 		else: incorrect+=1
-		if i % 1000 ==0: print("\rIteration ",i,": ",correct/(correct+incorrect),end=".")
+		if i % 1000 ==0: print("\rIteration ",i,": ",'%.5f'%(correct/(correct+incorrect)),end="\r")
 	return float(correct)/(incorrect+correct),f1_score(Y,Y_pred,average="micro"),confusion_matrix(Y,Y_pred)
 
 def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range):
@@ -96,29 +67,29 @@ def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range):
 	for a in alpha_range: 
 		accuracy = test_accuracy(X_dev,Y_dev,doc_counts,word_counts,len_vocab,a)[0]
 		scores[a] = accuracy
-		print("\rAlpha",a,accuracy)
+		print('\x1b[2K\r',end="\r") #Clears teh line
+		print("\rAlpha",a,'%.5f'%accuracy)
 	return max(scores,key=scores.get)
 
 
 def main():
-	train_data,dev_data,test_data = load_data()
-	len_vocab = get_len_vocab(train_data,dev_data,test_data)
+	du = data_utils()
+	len_vocab = du.get_len_vocab()
 	
 	all_Y_cats = ["country","variety","province"]
 	
 	for Y_cat in all_Y_cats:
-		X_train = train_data[X_cat]
-		Y_train = train_data[Y_cat]		
-		doc_counts,word_counts = gen_dicts(X_train,Y_train)
+		Y_train = du.train_data[Y_cat]		
+		doc_counts,word_counts = du.gen_dicts(du.X_train,Y_train)
 		print ("Category:",Y_cat)
 		print ("------------------------")
 		print ("# Categories: ",len(doc_counts))
 		print ("Calculating Best Alpha using dev set...")
-		alpha = get_best_alpha(dev_data[X_cat],dev_data[Y_cat],doc_counts,word_counts,len_vocab,ALPHA_RANGE)
+		alpha = get_best_alpha(du.X_train,du.dev_data[Y_cat],doc_counts,word_counts,len_vocab,ALPHA_RANGE)
 		print ("Calculating Test accuracy")
-		accuracy,f1,confusion = test_accuracy(dev_data[X_cat],dev_data[Y_cat],doc_counts,word_counts,len_vocab,alpha)
+		accuracy,f1,confusion = test_accuracy(du.X_train,du.dev_data[Y_cat],doc_counts,word_counts,len_vocab,alpha)
 		print ("\rTest Accuracy: ",accuracy)
-		print ("F1: ",f1)
+		print ("F1 Score: ",f1)
 		print ("\n\n")
 
 		
