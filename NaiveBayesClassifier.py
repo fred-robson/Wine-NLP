@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from collections import Counter,defaultdict
 from tqdm import tqdm
+from sklearn.metrics import confusion_matrix,f1_score
 
 train_data_file = "./data/train_utf.pkl"  
 dev_data_file = "./data/dev_utf.pkl"
@@ -11,7 +12,7 @@ X_cat = "description"
 ALPHA_RANGE = [1,2,5,10]
 
 
-def load_data(max_len=None):
+def load_data(max_len=100):
 	'''
 	Loads the data from the pickle file
 	returns: train_data,dev_data,test_data
@@ -38,6 +39,8 @@ def classify(words,doc_counts,word_counts,len_vocab,alpha):
 	'''
 	Classifies a single example - @words - according to the naive bayes model defined by 
 	doc_counts and word_counts
+
+	Return: The best label for the set of words
 	'''
 
 	doc_counts_sum = float(sum(doc_counts.values()))
@@ -68,18 +71,22 @@ def get_len_vocab(train,dev,test):
 				Vocab|=set(row[X_cat])
 	return len(Vocab)			
 
-def test_accuracy(X_test,Y_test,doc_counts,word_counts,len_vocab,alpha):
+def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha):
 	'''
-	Tests the accuracy of the Naive Bayes model on X_test,Y_test 
+	Tests the accuracy of the Naive Bayes model on X,Y 
+	
+	Returns the accuracy, f1 score and confusion matrix
 	'''	
 	correct = 0.0 
 	incorrect = 0.0 
-	for i,(x,true_label) in enumerate(zip(X_test,Y_test)): 
+	Y_pred = []
+	for i,(x,true_label) in enumerate(zip(X,Y)): 
 		pred = classify(x,doc_counts,word_counts,len_vocab,alpha)
+		Y_pred.append(pred)
 		if pred == true_label: correct+=1
 		else: incorrect+=1
-		if i % 1000 ==0: print("\r Iteration ",i,": ",correct/(correct+incorrect),end=".")
-	return float(correct)/(incorrect+correct)
+		if i % 1000 ==0: print("\rIteration ",i,": ",correct/(correct+incorrect),end=".")
+	return float(correct)/(incorrect+correct),f1_score(Y,Y_pred,average="micro"),confusion_matrix(Y,Y_pred)
 
 def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range):
 	'''
@@ -87,7 +94,7 @@ def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range):
 	'''
 	scores = {}
 	for a in alpha_range: 
-		accuracy = test_accuracy(X_dev,Y_dev,doc_counts,word_counts,len_vocab,a)
+		accuracy = test_accuracy(X_dev,Y_dev,doc_counts,word_counts,len_vocab,a)[0]
 		scores[a] = accuracy
 		print("\rAlpha",a,accuracy)
 	return max(scores,key=scores.get)
@@ -109,8 +116,9 @@ def main():
 		print ("Calculating Best Alpha using dev set...")
 		alpha = get_best_alpha(dev_data[X_cat],dev_data[Y_cat],doc_counts,word_counts,len_vocab,ALPHA_RANGE)
 		print ("Calculating Test accuracy")
-		accuracy = test_accuracy(dev_data[X_cat],dev_data[Y_cat],doc_counts,word_counts,len_vocab,alpha)
-		print ("Test Accuracy: ",accuracy)
+		accuracy,f1,confusion = test_accuracy(dev_data[X_cat],dev_data[Y_cat],doc_counts,word_counts,len_vocab,alpha)
+		print ("\rTest Accuracy: ",accuracy)
+		print ("F1: ",f1)
 		print ("\n\n")
 
 		
