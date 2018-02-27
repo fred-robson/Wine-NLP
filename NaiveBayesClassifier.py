@@ -42,7 +42,7 @@ def classify(words,doc_counts,word_counts,len_vocab,alpha):
 	return max(all_LLs,key=all_LLs.get)
 		
 
-def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha):
+def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha,print_iterations):
 	'''
 	Tests the accuracy of the Naive Bayes model on X,Y 
 	
@@ -61,21 +61,22 @@ def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha):
 			Y_true.append(true_label)
 			if pred == true_label: correct+=1
 			else: incorrect+=1
-		if i % 1000 ==0: print("\rIteration ",i,": ",'%.5f'%(correct/(correct+incorrect)),end="\r")
+		if print_iterations:
+			if i % 1000 ==0: print("\rIteration ",i,": ",'%.5f'%(correct/(correct+incorrect)),end="\r")
 	return float(correct)/(incorrect+correct),-1,0
 	#Note should put in later, but not workign now for some reason 
 	#,f1_score(Y_true,Y_pred,average="micro"),confusion_matrix(Y_true,Y_pred)
 
-def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range,loud=True):
+def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range,show_iterations):
 	'''
 	Uses the dev set to get the best alpha 
 	'''
 	scores = {}
 	for a in alpha_range: 
-		accuracy,f1,_ = test_accuracy(X_dev,Y_dev,doc_counts,word_counts,len_vocab,a)
+		accuracy,f1,_ = test_accuracy(X_dev,Y_dev,doc_counts,word_counts,len_vocab,a,show_iterations)
 		scores[a] = accuracy
-		if loud: print('\x1b[2K\r',end="\r") #Clears teh line
-		if loud: print("\rAlpha",a,'%.5f'%accuracy)
+		print('\x1b[2K\r',end="\r") #Clears teh line
+		print("\rAlpha",a,'%.5f'%accuracy)
 
 	return max(scores,key=scores.get)
 
@@ -115,7 +116,7 @@ def main(limit,show_iterations):
 		alpha = get_best_alpha(du.X_train,Y_dev,doc_counts,word_counts,len_vocab,ALPHA_RANGE,show_iterations)
 		print("Best Alpha = ",alpha)
 		print ("Calculating Test accuracy")
-		accuracy,f1,confusion = test_accuracy(du.X_train,Y_test,doc_counts,word_counts,len_vocab,alpha)
+		accuracy,f1,confusion = test_accuracy(du.X_train,Y_test,doc_counts,word_counts,len_vocab,alpha,show_iterations)
 		print ("\rTest Accuracy: ",accuracy)
 		print ("F1 Score: ",f1)
 		print ("\n\n")
@@ -135,7 +136,7 @@ if __name__ == "__main__":
 	if "-q" in args:
 		show_iterations = False
 		print("Iterations turned off")
-
+	print ("\n")
 	main(limit,show_iterations)
 
 
