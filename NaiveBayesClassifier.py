@@ -5,8 +5,8 @@ Implements Naive Bayes to run as a baseline for the wine project
 from data_utils import data_utils
 import numpy as np
 from collections import Counter,defaultdict
-from tqdm import tqdm
 from sklearn.metrics import confusion_matrix,f1_score
+import sys
 
 ALPHA_RANGE = [1,2,3,4,5,10]
 
@@ -66,7 +66,7 @@ def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha):
 	#Note should put in later, but not workign now for some reason 
 	#,f1_score(Y_true,Y_pred,average="micro"),confusion_matrix(Y_true,Y_pred)
 
-def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range):
+def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range,loud=True):
 	'''
 	Uses the dev set to get the best alpha 
 	'''
@@ -74,8 +74,8 @@ def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range):
 	for a in alpha_range: 
 		accuracy,f1,_ = test_accuracy(X_dev,Y_dev,doc_counts,word_counts,len_vocab,a)
 		scores[a] = accuracy
-		print('\x1b[2K\r',end="\r") #Clears teh line
-		print("\rAlpha",a,'%.5f'%accuracy)
+		if loud: print('\x1b[2K\r',end="\r") #Clears teh line
+		if loud: print("\rAlpha",a,'%.5f'%accuracy)
 
 	return max(scores,key=scores.get)
 
@@ -94,8 +94,8 @@ def gen_dicts(X_train,Y_train):
 	return doc_counts,word_counts
 
 
-def main():
-	du = data_utils(300)
+def main(limit,show_iterations):
+	du = data_utils(limit)
 	len_vocab = du.get_len_vocab()
 	
 	all_Y_cats = ["variety","points","price","country","province"]
@@ -112,7 +112,7 @@ def main():
 		print ("------------------------")
 		print ("# Categories: ",len(doc_counts))
 		print ("Calculating Best Alpha using dev set...")
-		alpha = get_best_alpha(du.X_train,Y_dev,doc_counts,word_counts,len_vocab,ALPHA_RANGE)
+		alpha = get_best_alpha(du.X_train,Y_dev,doc_counts,word_counts,len_vocab,ALPHA_RANGE,show_iterations)
 		print("Best Alpha = ",alpha)
 		print ("Calculating Test accuracy")
 		accuracy,f1,confusion = test_accuracy(du.X_train,Y_test,doc_counts,word_counts,len_vocab,alpha)
@@ -124,4 +124,18 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+	args = sys.argv
+	
+	limit = None
+	if str.isdigit(args[1]): 
+		limit = int(args[1])
+		print("Limit of ",limit)
+
+	show_iterations = True
+	if "-q" in args:
+		show_iterations = False
+		print("Iterations turned off")
+
+	main(limit,show_iterations)
+
+
