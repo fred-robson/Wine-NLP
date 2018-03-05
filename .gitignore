@@ -2,3 +2,4 @@
 *.pkl
 *.pyc
 *split_data.py
+*.ipynb_checkpoints/
