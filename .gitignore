@@ -1,3 +1,4 @@
 *.csv
 *.pkl
 *.pyc
+*split_data.py
