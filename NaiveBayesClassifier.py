@@ -2,15 +2,13 @@
 Implements Naive Bayes to run as a baseline for the wine project
 
 '''
-from data_utils import data_utils
+from data_utils import data_helper
 import numpy as np
 from collections import Counter,defaultdict
 from sklearn.metrics import confusion_matrix,f1_score
 import sys
 
 ALPHA_RANGE = [1,2,3,4,5,10]
-
-
 
 def classify(words,doc_counts,word_counts,len_vocab,alpha):
 	'''
@@ -63,9 +61,7 @@ def test_accuracy(X,Y,doc_counts,word_counts,len_vocab,alpha,print_iterations):
 			else: incorrect+=1
 		if print_iterations:
 			if i % 1000 ==0: print("\rIteration ",i,": ",'%.5f'%(correct/(correct+incorrect)),end="\r")
-	return float(correct)/(incorrect+correct),-1,0
-	#Note should put in later, but not workign now for some reason 
-	#,f1_score(Y_true,Y_pred,average="micro"),confusion_matrix(Y_true,Y_pred)
+	return float(correct)/(incorrect+correct),f1_score(Y_true,Y_pred,average="macro"),confusion_matrix(Y_true,Y_pred)
 
 def get_best_alpha(X_dev,Y_dev,doc_counts,word_counts,len_vocab,alpha_range,show_iterations):
 	'''
@@ -96,8 +92,8 @@ def gen_dicts(X_train,Y_train):
 
 
 def main(limit,show_iterations):
-	du = data_utils(limit)
-	len_vocab = du.get_len_vocab()
+	du = data_helper(limit)
+	len_vocab = len(du.generate_vocab_and_word_frequencies()[0])
 	
 	all_Y_cats = ["variety","points","price","country","province"]
 	
