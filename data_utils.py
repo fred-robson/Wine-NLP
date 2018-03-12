@@ -19,7 +19,7 @@ class data_utils():
 
 	def __init__(self,max_len=None):
 		'''
-		Max-len is useful for testing 
+		Max-len is useful for testing. Means that you dont need to load the full dataset
 		'''
 		self.train_data,self.dev_data,self.test_data = self.load_data(max_len)
 		self.X_train = self.train_data[X_cat]
@@ -38,12 +38,20 @@ class data_utils():
 			else: loaded_data.append(data_frame[:max_len])
 		return loaded_data
 
+	def get_all_data(self,category):
+		#returns the concatenated 
+		all_data = np.array([])
+		for data in [self.train_data,self.dev_data,self.test_data]:
+			all_data = np.append(all_data,data[category])
+		return all_data
+
 	def get_Y_cat(self,Y_cat):
 		return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
 
 	def discretize(self,category,num_categories=20):
 		'''
 		Converts a continous distribution into an equally split discrete distribution
+		Returns train_discrete,dev_discrete,test_discrete
 		'''
 		
 		all_data = np.array([])
@@ -71,9 +79,6 @@ class data_utils():
 
 		return ret 
 
-		
-
-
 	def get_len_vocab(self):
 		'''
 		Gets the length of the vocabulary contrained in train, test and dev
@@ -87,5 +92,7 @@ class data_utils():
 
 
 if __name__ == "__main__":
-	du = data_utils(300)
-	print(du.discretize("price",20))
+	du = data_utils()
+	print (du.get_len_vocab())
+	#print(du.discretize("price",20))
+	
