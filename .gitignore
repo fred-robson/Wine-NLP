@@ -3,3 +3,5 @@
 *.pyc
 *split_data.py
 *.ipynb_checkpoints/
+*.zip
+*.txt
