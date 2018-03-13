@@ -48,7 +48,7 @@ def run_for_Y_cat(X,Y,Y_cat,NB,alpha_range):
 
 
 
-def main(limit,show_iterations):
+def main(limit):
 	du = data_helper(limit)
 	
 	discrete_Y_cats = ["province","variety","country"]
@@ -66,9 +66,9 @@ if __name__ == "__main__":
 	args = sys.argv
 	
 	limit = None
-	if len(args)>0 and str.isdigit(args[1]): 
+	if len(args)>1 and str.isdigit(args[1]): 
 		limit = int(args[1])
 		print("Limit of ",limit)
-	main(limit,show_iterations)
+	main(limit)
 
 
