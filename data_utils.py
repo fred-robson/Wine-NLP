@@ -54,14 +54,15 @@ class data_helper():
 		#TO DO: Add normalization
 		return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
 
-	def discretize(self,category,num_categories=20):
+	def discretize(self,Y,num_categories=20):
 		'''
 		Converts a continous distribution into an equally split discrete distribution
+		Assumes Y is a tuple of [train,dev,test]
 		'''
 		
 		all_data = np.array([])
-		for data in [self.train_data,self.dev_data,self.test_data]:
-			all_data = np.append(all_data,data[category])
+		for data in Y:
+			all_data = np.append(all_data,data)
 		all_data = all_data.astype(float)
 		all_data = np.sort(all_data)
 		all_data = all_data[~np.isnan(all_data)]
@@ -72,8 +73,7 @@ class data_helper():
 
 
 		ret = []
-		for data in [self.train_data,self.dev_data,self.test_data]:
-			cat_data = data[category]
+		for cat_data in Y:
 			discretized = []
 			for y in cat_data:
 				if math.isnan(y): 
@@ -117,9 +117,11 @@ class data_helper():
 		Converts the ["I","am"...."am"] into a vector where the index represents a word count
 		'''
 		ret = []
+
+
 		if all_X is None: 
 			all_X =[self.X_train,self.X_dev,self.X_test] 
-			
+
 		for X  in all_X:
 			X_vectorized = np.zeros([len(X),len(self.vocab)])
 			for i,row in enumerate(X):
@@ -127,9 +129,8 @@ class data_helper():
 					j = self.vocab_to_index[w]
 					X_vectorized[(i,j)]+=1
 			ret.append(X_vectorized)
-		return ret
-					
-	
+		return ret	
+
 
 	def generate_vocab_and_word_frequencies(self):
 		'''
