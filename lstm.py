@@ -323,9 +323,10 @@ class RNNModel(Model):
             print("Loss: ", loss)
             print("")
             #print(dev_set_raw)
-            score  = self.evaluate(sess, train_raw)
+            score_train  = self.evaluate(sess, train_raw)
+            score = self.evaluate(sess, dev_set_raw)
             #score = 0.0
-            print("Accuracy: ", score)
+            print("Accuracy | Train: %f , Dev: %f", (score_train, score))
             if score > best_score:
                 best_score = score
                 if saver:
