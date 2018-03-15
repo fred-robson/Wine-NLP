@@ -17,7 +17,53 @@ test_data_file = "data/test_utf.pkl"
 X_cat = "description"
 
 
-class data_helper():
+def data_frame_as_list(df):
+    return [[row] for row in df.as_matrix()]
+
+
+class LabelsHelper():
+
+    def __init__(self, batch_dict, Y_cat):
+        '''
+        batch_dict is dict of form: {"train" : data_frame, "dev" : data_frame, "test" : data_frame}
+        '''
+        self.name = Y_cat
+        self.train_df = batch_dict["train"]
+        self.dev_df = batch_dict["dev"]
+        self.test_df = batch_dict["test"]
+        self.train_labels = data_frame_as_list(self.train_df)
+        self.dev_labels =data_frame_as_list(self.dev_df)
+        self.test_labels = data_frame_as_list(self.test_df)
+        self.lbl_2_class, self.class_2_lbl, self.num_classes = self.characterize_labels()
+        self.train_classes = self.label_list_2_class_list(self.train_labels)
+        self.dev_classes =self.label_list_2_class_list(self.dev_labels)
+        self.test_classes =self.label_list_2_class_list(self.test_labels)
+
+    def label_list_2_class_list(self, label_list):
+        class_list = []
+        for label in label_list:
+            if type(label) is list:
+                label = label[0]
+            _class = self.lbl_2_class[label]
+            class_list.append([_class])
+        return class_list
+
+    def characterize_labels(self):
+        lbl_2_class = {}
+        class_2_lbl = {}
+        _class = 0
+        for batch in [self.train_labels, self.dev_labels, self.test_labels]:
+            for label in batch:
+                if type(label) is list:
+                    label = label[0]
+                if lbl_2_class.get(label, "") is "":
+                    lbl_2_class[label] = _class
+                    class_2_lbl[_class] = label
+                    _class += 1
+        return lbl_2_class, class_2_lbl, _class
+
+
+class DataHelper():
 
     def __init__(self,max_len=None):
         '''
@@ -44,6 +90,15 @@ class data_helper():
 
     def get_Y_cat(self,Y_cat):
         return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
+    
+    def labels_from_Y_cat(self, Y_cat):
+        '''
+        
+        returns: train_labels, dev_labels, test_labels, dict = {label : class}, num_classes  
+        '''
+        train_df, dev_df, test_df = self.get_Y_cat(Y_cat)
+        batch_dict = {"train" : train_df, "dev": dev_df, "test": test_df }
+        return LabelsHelper(batch_dict, Y_cat)
 
     def discretize(self,category,num_categories=20):
         '''
@@ -87,13 +142,27 @@ class data_helper():
                 if len(desc) > self.max_length:
                     self.max_length = len(desc)
                 for word in desc:
-                    vocab|=set(word)
+                    vocab.add(word)
                     word_counts[word]+=1 
         return vocab, word_counts
+   
+    def data_as_list_of_tuples(self, data):
+        """
+        data is of form [sentences, labels]
+        return [(sentences[0], labels[0]), (sentences[1], labels[1]) ...]
+        """
+        assert len(data) == 2, ("data must be of form [examples, labels]")
+        data_as_list = []
+        for data_tup in zip(*data):       
+            data_as_list.append(data_tup)
+        return data_as_list
 
 if __name__ == "__main__":
-    du = data_helper(300)
+    du = DataHelper(100)
     freq_dict = du.word_freq_dict
     print (json.dumps(freq_dict, indent=1))
     print(len(du.vocab))
+    points = du.labels_from_Y_cat("points")
+    print(points.train_classes)
+    print(points.num_classes)
     #print(du.discretize("price",20))
