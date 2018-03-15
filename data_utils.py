@@ -76,20 +76,17 @@ class DataHelper():
         self.X_test = self.test_data[X_cat]
         self.vocab, self.word_freq_dict = self.generate_vocab_and_word_frequencies()
 
-	def load_data(self,max_len=None):
-		'''
-		Loads the data from the pickle file. Called at initialization 
-		returns: train_data,dev_data,test_data
-		'''
-		loaded_data = []
-		for filename in [train_data_file,dev_data_file,test_data_file]:
-			data_frame = pd.read_pickle(filename)
-			if max_len == None: loaded_data.append(data_frame)
-			else: loaded_data.append(data_frame[:max_len])
-		return loaded_data
-
-    def get_Y_cat(self,Y_cat):
-        return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
+    def load_data(self,max_len=None):
+        '''
+        Loads the data from the pickle file. Called at initialization 
+        returns: train_data,dev_data,test_data
+        '''
+        loaded_data = []
+        for filename in [train_data_file,dev_data_file,test_data_file]:
+            data_frame = pd.read_pickle(filename)
+            if max_len == None: loaded_data.append(data_frame)
+            else: loaded_data.append(data_frame[:max_len])
+        return loaded_data
     
     def labels_from_Y_cat(self, Y_cat):
         '''
@@ -100,37 +97,37 @@ class DataHelper():
         batch_dict = {"train" : train_df, "dev": dev_df, "test": test_df }
         return LabelsHelper(batch_dict, Y_cat)
 
-	def get_Y_cat(self,Y_cat,normalize=False):
-		#TO DO: Add normalization
-		return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
+    def get_Y_cat(self,Y_cat,normalize=False):
+        #TO DO: Add normalization
+        return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
 
-	def discretize(self,Y,num_categories=20):
-		'''
-		Converts a continous distribution into an equally split discrete distribution
-		Assumes Y is a tuple of [train,dev,test]
-		'''
-		
-		all_data = np.array([])
-		for data in Y:
-			all_data = np.append(all_data,data)
-		all_data = all_data.astype(float)
-		all_data = np.sort(all_data)
-		all_data = all_data[~np.isnan(all_data)]
+    def discretize(self,Y,num_categories=20):
+        '''
+        Converts a continous distribution into an equally split discrete distribution
+        Assumes Y is a tuple of [train,dev,test]
+        '''
+        
+        all_data = np.array([])
+        for data in Y:
+            all_data = np.append(all_data,data)
+        all_data = all_data.astype(float)
+        all_data = np.sort(all_data)
+        all_data = all_data[~np.isnan(all_data)]
 
-		discrete_areas = np.array_split(all_data,num_categories)
-		bins = [b[0] for b in discrete_areas]
-		bins.append(float("inf"))
+        discrete_areas = np.array_split(all_data,num_categories)
+        bins = [b[0] for b in discrete_areas]
+        bins.append(float("inf"))
 
-
-		ret = []
-		for cat_data in Y:
-			discretized = []
-			for y in cat_data:
-				if math.isnan(y): 
-					discretized.append(None)
-				else:
-					discretized.append(str(min(set(x for x in bins if x>y))))
-			ret.append(discretized)
+        ret = []
+        for cat_data in Y:
+            discretized = []
+            for y in cat_data:
+                if math.isnan(y): 
+                    discretized.append(None)
+                else:
+                    discretized.append(str(min(set(x for x in bins if x>y))))
+        ret.append(discretized)
+        return ret    
 
     def generate_vocab_and_word_frequencies(self):
         '''
@@ -159,72 +156,72 @@ class DataHelper():
             data_as_list.append(data_tup)
         return data_as_list
 
-	def missing_indices(self,Y_cat):
-		'''
-		Returns a vector of indices where the Y category is empty
-		'''	
-		ret = []
-		Y_data = self.get_Y_cat(Y_cat)
-		for Y in Y_data:
-			indices = []
-			for i,y_i in enumerate(Y):
-				if not type(y_i) is str and math.isnan(y_i): 
-					indices.append(i)
-			ret.append(indices)
-		return ret 
+    def missing_indices(self,Y_cat):
+        '''
+        Returns a vector of indices where the Y category is empty
+        ''' 
+        ret = []
+        Y_data = self.get_Y_cat(Y_cat)
+        for Y in Y_data:
+            indices = []
+            for i,y_i in enumerate(Y):
+                if not type(y_i) is str and math.isnan(y_i): 
+                    indices.append(i)
+            ret.append(indices)
+        return ret 
 
-	def filtered_on_missing_indices(self,Y_cat):
-		#Removes anything that has a missing Y value
-		X = self.X_train, self.X_dev, self.X_test
-		Y = self.get_Y_cat(Y_cat)
-		Z = self.missing_indices(Y_cat)
-	
-		ret = [],[]
+    def filtered_on_missing_indices(self,Y_cat):
+        #Removes anything that has a missing Y value
+        X = self.X_train, self.X_dev, self.X_test
+        Y = self.get_Y_cat(Y_cat)
+        Z = self.missing_indices(Y_cat)
+        
+        ret = [],[]
 
-		for x,y,z in zip(X,Y,Z):
-			ret[0].append(np.delete(np.array(x),z))
-			ret[1].append(np.delete(np.array(y),z))
-		return ret
-	
+        for x,y,z in zip(X,Y,Z):
+            ret[0].append(np.delete(np.array(x),z))
+            ret[1].append(np.delete(np.array(y),z))
+        return ret
+    
 
-	def get_vectorized_X(self,all_X=None):
-		'''
-		Converts the ["I","am"...."am"] into a vector where the index represents a word count
-		'''
-		ret = []
-
-
-		if all_X is None: 
-			all_X =[self.X_train,self.X_dev,self.X_test] 
-
-		for X  in all_X:
-			X_vectorized = np.zeros([len(X),len(self.vocab)])
-			for i,row in enumerate(X):
-				for w in row:
-					j = self.vocab_to_index[w]
-					X_vectorized[(i,j)]+=1
-			ret.append(X_vectorized)
-		return ret	
+    def get_vectorized_X(self,all_X=None):
+        '''
+        Converts the ["I","am"...."am"] into a vector where the index represents a word count
+        '''
+        ret = []
 
 
-	def generate_vocab_and_word_frequencies(self):
-		'''
-		Generates the vocabulary and word frequencies in train, test and dev
-		Returns: set of words making up vocab, dictionary of word frequencies {word: count}
-		'''
-		vocab = set()
-		word_counts = defaultdict(int)
-		for data in [self.X_train,self.X_dev,self.X_test]:
-			for desc in data:
-				if len(desc) > self.max_length:
-					self.max_length = len(desc)
-				for word in desc:
-					vocab.add(word)
-					word_counts[word]+=1 
-		return vocab, word_counts
+        if all_X is None: 
+            all_X =[self.X_train,self.X_dev,self.X_test] 
+
+        for X  in all_X:
+            X_vectorized = np.zeros([len(X),len(self.vocab)])
+            for i,row in enumerate(X):
+                for w in row:
+                    j = self.vocab_to_index[w]
+                    X_vectorized[(i,j)]+=1
+            ret.append(X_vectorized)
+        return ret  
+
+
+    def generate_vocab_and_word_frequencies(self):
+        '''
+        Generates the vocabulary and word frequencies in train, test and dev
+        Returns: set of words making up vocab, dictionary of word frequencies {word: count}
+        '''
+        vocab = set()
+        word_counts = defaultdict(int)
+        for data in [self.X_train,self.X_dev,self.X_test]:
+            for desc in data:
+                if len(desc) > self.max_length:
+                    self.max_length = len(desc)
+                for word in desc:
+                    vocab.add(word)
+                    word_counts[word]+=1 
+        return vocab, word_counts
 
 if __name__ == "__main__":
-    du = DataHelper(100)
+    du =DataHelper(100)
     freq_dict = du.word_freq_dict
     print (json.dumps(freq_dict, indent=1))
     print(len(du.vocab))
