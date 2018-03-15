@@ -1,3 +1,4 @@
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 '''
 File for accessing and manipulating the data
 '''

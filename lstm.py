@@ -232,6 +232,36 @@ class RNNModel(Model):
             ret.append([sentence, labels, labels_])
         return ret
     
+
+    def evaluate(self, sess, examples, examples_raw):
+        """Evaluates model performance on @examples.
+
+        This function uses the model to predict labels for @examples and constructs a confusion matrix.
+
+        Args:
+        sess: the current TensorFlow session.
+        examples: A list of vectorized input/output pairs.
+        examples: A list of the original input/output sequence pairs.
+        Returns:
+        The F1 score for predicting tokens as named entities.
+        """
+        token_cm = ConfusionMatrix(labels=LBLS)
+
+        correct_preds, total_correct, total_preds = 0., 0., 0.
+            for _, labels, labels_  in self.output(sess, examples_raw, examples):
+                for l, l_ in zip(labels, labels_):
+                    token_cm.update(l, l_)
+                    gold = set(get_chunks(labels))
+                    pred = set(get_chunks(labels_))
+                    correct_preds += len(gold.intersection(pred))
+                    total_preds += len(pred)
+                    total_correct += len(gold)
+
+                    p = correct_preds / total_preds if correct_preds > 0 else 0
+                    r = correct_preds / total_correct if correct_preds > 0 else 0
+                    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+                    return token_cm, (p, r, f1)
+
     def output(self, sess, inputs_raw, inputs=None):
         """
         Reports the output of the model on examples (uses helper to featurize each example).
@@ -279,6 +309,12 @@ class RNNModel(Model):
             loss = np.mean(loss)
             print("Loss: ", loss)
             print("")
+
+            if score > best_score:
+                best_score = score
+                if saver:
+                    logger.info("New best score! Saving model in %s", self.config.model_output)
+                    saver.save(sess, self.config.model_output)
         return best_score
     
     def __init__(self, helper, config, pretrained_embeddings):
