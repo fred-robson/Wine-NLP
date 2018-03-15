@@ -164,15 +164,14 @@ class RNNModel(Model):
         """
         labels = self.labels_placeholder
         if self.config.many2one:
-            labels = tf.reduce_mean(labels, axis = 1)
-            print(labels) 
+            labels = tf.reduce_mean(labels, axis = 1) 
             labels = tf.cast(labels, dtype = tf.int32)
         else:
             preds = tf.boolean_mask(preds, self.mask_placeholder)
             labels = tf.boolean_mask(self.labels_placeholder, self.mask_placeholder)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = labels, logits = preds)
         loss = tf.reduce_mean(loss)
-        return loss, labels
+        return loss
 
     def add_training_op(self, loss):
         """Sets up the training Ops.
@@ -192,7 +191,6 @@ class RNNModel(Model):
 
         returns: [sentence, labels]
         '''
-        #make copy of data
         data_copy = data
         data_copy = self.data_helper.data_as_list_of_tuples(data_copy)
         data_copy = self.format_labels(data_copy)
