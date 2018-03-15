@@ -2,7 +2,7 @@
 Implements Naive Bayes to run as a baseline for the wine project
 
 '''
-from data_utils import data_helper
+from data_utils import DataHelper
 import numpy as np
 from collections import Counter,defaultdict
 import sklearn.metrics
@@ -137,7 +137,7 @@ def run_best_model(test_x,test_y,du,model,batch_size = 1000):
 
 
 def main(limit,save,load):
-    du = data_helper(limit)
+    du = DataHelper(limit)
     
     to_save_models = {}
 
@@ -184,11 +184,11 @@ if __name__ == "__main__":
         limit = int(args[1])
         print("Limit of ",limit)
 
-    if len(args)>1 and args[1] == '-s':
+    if len(args)>1 and '-s' in args:
         print("Models will be saved")
         save = True
 
-    elif len(args)>1 and args[1] == "-l":
+    elif len(args)>1 and "-l" in args:
         print("Using saved models")
         load = True
 
