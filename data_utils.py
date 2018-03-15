@@ -76,7 +76,12 @@ class DataHelper():
         self.X_dev = self.dev_data[X_cat]
         self.X_test = self.test_data[X_cat]
         self.vocab, self.word_freq_dict = self.generate_vocab_and_word_frequencies()
+<<<<<<< HEAD
 
+=======
+        self.vocab_to_index = {v:i for i,v in enumerate(sorted(list(self.vocab)))}
+        
+>>>>>>> 1d7ef5cbc1927cfe08f9f3e2281eba7958b65766
     def load_data(self,max_len=None):
         '''
         Loads the data from the pickle file. Called at initialization 
@@ -88,20 +93,28 @@ class DataHelper():
             if max_len == None: loaded_data.append(data_frame)
             else: loaded_data.append(data_frame[:max_len])
         return loaded_data
+<<<<<<< HEAD
+=======
+
+    def get_Y_cat(self,Y_cat):
+        return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
+>>>>>>> 1d7ef5cbc1927cfe08f9f3e2281eba7958b65766
     
     def labels_from_Y_cat(self, Y_cat):
         '''
-        
         returns: train_labels, dev_labels, test_labels, dict = {label : class}, num_classes  
         '''
         train_df, dev_df, test_df = self.get_Y_cat(Y_cat)
         batch_dict = {"train" : train_df, "dev": dev_df, "test": test_df }
         return LabelsHelper(batch_dict, Y_cat)
 
+<<<<<<< HEAD
     def get_Y_cat(self,Y_cat,normalize=False):
         #TO DO: Add normalization
         return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
 
+=======
+>>>>>>> 1d7ef5cbc1927cfe08f9f3e2281eba7958b65766
     def discretize(self,Y,num_categories=20):
         '''
         Converts a continous distribution into an equally split discrete distribution
@@ -119,6 +132,10 @@ class DataHelper():
         bins = [b[0] for b in discrete_areas]
         bins.append(float("inf"))
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 1d7ef5cbc1927cfe08f9f3e2281eba7958b65766
         ret = []
         for cat_data in Y:
             discretized = []
@@ -127,8 +144,14 @@ class DataHelper():
                     discretized.append(None)
                 else:
                     discretized.append(str(min(set(x for x in bins if x>y))))
+<<<<<<< HEAD
         ret.append(discretized)
         return ret    
+=======
+            ret.append(discretized)
+
+        return ret
+>>>>>>> 1d7ef5cbc1927cfe08f9f3e2281eba7958b65766
 
     def generate_vocab_and_word_frequencies(self):
         '''
@@ -176,7 +199,11 @@ class DataHelper():
         X = self.X_train, self.X_dev, self.X_test
         Y = self.get_Y_cat(Y_cat)
         Z = self.missing_indices(Y_cat)
+<<<<<<< HEAD
         
+=======
+    
+>>>>>>> 1d7ef5cbc1927cfe08f9f3e2281eba7958b65766
         ret = [],[]
 
         for x,y,z in zip(X,Y,Z):
