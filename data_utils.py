@@ -29,7 +29,7 @@ class data_helper():
 		self.X_dev = self.dev_data[X_cat]
 		self.X_test = self.test_data[X_cat]
 		self.vocab, self.word_freq_dict = self.generate_vocab_and_word_frequencies()
-		self.vocab_to_index = {v:i for i,v in enumerate(self.vocab)}
+		self.vocab_to_index = {v:i for i,v in enumerate(sorted(list(self.vocab)))}
 
 	def load_data(self,max_len=None):
 		'''
