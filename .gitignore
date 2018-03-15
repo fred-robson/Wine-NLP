@@ -5,3 +5,6 @@
 *.ipynb_checkpoints/
 *.zip
 *.txt
+*.swp
+*.conll
+*.swo
