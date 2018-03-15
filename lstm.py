@@ -15,6 +15,8 @@ import copy
 from model import Model
 from util import minibatches
 import os
+from sklearn.metrics import accuracy_score
+
 class Config:
     """Holds model hyperparams and data information.
 
@@ -28,15 +30,16 @@ class Config:
     n_attributes = 1
     dropout = 0.5
     embed_size = 50
-    hidden_size = 300
+    hidden_size = 1000
     batch_size = 32
     current_batch_size = batch_size
-    n_epochs = 10
+    n_epochs = 30
     max_grad_norm = 10.
     lr = 0.001
 
-    def __init__(self, cell, n_classes = 0):
+    def __init__(self, cell, n_classes = 0, many2one = False):
         self.cell = cell
+        self.many2one = many2one
         if n_classes:
             self.n_classes = n_classes
         self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
@@ -46,7 +49,7 @@ class Config:
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
-def pad_sequences(data, max_length):
+def pad_sequences(data, max_length, many2one = False):
     """Ensures each input-output seqeunce pair in @data is of length
     @max_length by padding it with zeros and truncating the rest of the
     sequence.
@@ -143,7 +146,6 @@ class RNNModel(Model):
         outputs_drop = tf.reshape(outputs_drop, [-1, self.config.hidden_size])
         y = tf.add(tf.matmul(outputs_drop, U), b_2)
         preds = tf.reshape(y, [-1, self.config.max_length, self.config.n_classes])
-        
         return preds
 
     def add_loss_op(self, preds):
@@ -179,17 +181,18 @@ class RNNModel(Model):
         train_op = optimizer.minimize(loss) 
         return train_op
     
-    def preprocess_data(self, data):
+    def preprocess_data(self, data, pad = True):
         '''
         data is of form: [sentence, labels]
 
         returns: [sentence, labels]
         '''
         #make copy of data
-        data_copy = data[:]
+        data_copy = data
         data_copy = self.data_helper.data_as_list_of_tuples(data_copy)
         data_copy = self.format_labels(data_copy)
-        data_copy = pad_sequences(data_copy, self.config.max_length)
+        if pad:
+            data_copy = pad_sequences(data_copy, self.config.max_length)
         return data_copy
 
     def format_labels(self, data):
@@ -205,7 +208,7 @@ class RNNModel(Model):
         for sentence, labels in data:
             assert len(labels) == self.config.n_attributes, ("Invalid number of labels for given sentence")
 
-            labels_copy = labels
+            labels_copy = copy.deepcopy(labels)
             sentence_length = len(sentence)
             diff = sentence_length - len(labels_copy)
             if diff > 0:
@@ -227,13 +230,19 @@ class RNNModel(Model):
         ret = []
         for i, (sentence, labels) in enumerate(examples_raw):
             _, _, mask = examples[i]
-            labels_ = [l for l, m in zip(preds[i], mask) if m] # only select elements of mask.
-            assert len(labels_) == len(labels)
-            ret.append([sentence, labels, labels_])
+            labels_ = None
+            labels_gt = labels[:]
+            if self.config.many2one:
+                labels_ = [preds[i]]
+                labels_gt = [labels[0]]
+            else:
+                labels_ = [l for l, m in zip(preds[i], mask) if m] # only select elements of mask.
+            assert len(labels_) == len(labels_gt)
+            ret.append([sentence, labels_gt, labels_])
         return ret
     
 
-    def evaluate(self, sess, examples, examples_raw):
+    def evaluate(self, sess, examples_raw, examples = None):
         """Evaluates model performance on @examples.
 
         This function uses the model to predict labels for @examples and constructs a confusion matrix.
@@ -241,26 +250,18 @@ class RNNModel(Model):
         Args:
         sess: the current TensorFlow session.
         examples: A list of vectorized input/output pairs.
-        examples: A list of the original input/output sequence pairs.
+        examples_raw: A list of the original input/output sequence pairs.
         Returns:
-        The F1 score for predicting tokens as named entities.
+        The one to one accuracy for predicting tokens as named entities.
         """
-        token_cm = ConfusionMatrix(labels=LBLS)
+        #token_cm = ConfusionMatrix(labels=LBLS)
 
-        correct_preds, total_correct, total_preds = 0., 0., 0.
-            for _, labels, labels_  in self.output(sess, examples_raw, examples):
-                for l, l_ in zip(labels, labels_):
-                    token_cm.update(l, l_)
-                    gold = set(get_chunks(labels))
-                    pred = set(get_chunks(labels_))
-                    correct_preds += len(gold.intersection(pred))
-                    total_preds += len(pred)
-                    total_correct += len(gold)
-
-                    p = correct_preds / total_preds if correct_preds > 0 else 0
-                    r = correct_preds / total_correct if correct_preds > 0 else 0
-                    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
-                    return token_cm, (p, r, f1)
+        #correct_preds, total_correct, total_preds = 0., 0., 0.
+        acc_array = []
+        for _, labels, labels_  in self.output(sess, examples_raw, examples):
+            acc_array.append(accuracy_score(labels, labels_))
+        one_2_one = np.mean(acc_array)
+        return one_2_one
 
     def output(self, sess, inputs_raw, inputs=None):
         """
@@ -271,9 +272,9 @@ class RNNModel(Model):
             inputs = self.preprocess_data(inputs_raw)
         
         # make copy of raw inputs
-        inputs_raw_copy = inputs_raw[:]
-        inputs_raw_copy = self.data_helper.data_as_list_of_tuples(inputs_raw_copy)
-
+        inputs_raw_copy = inputs_raw
+        inputs_raw_copy = self.preprocess_data(inputs_raw_copy, pad = False)
+         
         preds = []
         prog = Progbar(target=1 + int(len(inputs) / self.config.batch_size))
         for i, batch in enumerate(minibatches(inputs, self.config.batch_size, shuffle=False)):
@@ -285,8 +286,19 @@ class RNNModel(Model):
         return self.consolidate_predictions(inputs_raw_copy, inputs, preds)
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
+        def preds_many2one(predictions):
+            int_mask = tf.cast(mask_batch, dtype = tf.float32)
+            predictions = tf.multiply(predictions, tf.expand_dims(int_mask, 2))
+            predictions = tf.nn.softmax(predictions)
+            predictions = tf.reduce_sum(predictions, axis = 1)
+            predictions = tf.argmax(predictions, axis = 1)
+            return predictions
+
         feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
-        predictions = sess.run(tf.argmax(self.pred, axis=2), feed_dict=feed)
+        if self.config.many2one:
+            predictions = sess.run(preds_many2one(self.pred), feed_dict=feed)
+        else:
+            predictions = sess.run(tf.argmax(self.pred, axis=2), feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
@@ -296,8 +308,9 @@ class RNNModel(Model):
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
     
-    def fit(self, sess, saver, train_examples, dev_set):
-        train = self.preprocess_data(train_examples)
+    def fit(self, sess, saver, train_raw, dev_set_raw):
+        train = self.preprocess_data(train_raw)
+        #dev_set = self.preprocess_data(dev_set_raw)
         best_score = 0.
         for epoch in range(self.config.n_epochs):
             print("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
@@ -309,11 +322,14 @@ class RNNModel(Model):
             loss = np.mean(loss)
             print("Loss: ", loss)
             print("")
-
+            #print(dev_set_raw)
+            score  = self.evaluate(sess, train_raw)
+            #score = 0.0
+            print("Accuracy: ", score)
             if score > best_score:
                 best_score = score
                 if saver:
-                    logger.info("New best score! Saving model in %s", self.config.model_output)
+                    print("New best accuracy! Saving model in %s", self.config.model_output)
                     saver.save(sess, self.config.model_output)
         return best_score
     

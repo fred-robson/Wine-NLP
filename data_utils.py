@@ -205,7 +205,7 @@ class DataHelper():
             ret.append(X_vectorized)
         return ret  
 
-
+    """
     def generate_vocab_and_word_frequencies(self):
         '''
         Generates the vocabulary and word frequencies in train, test and dev
@@ -221,7 +221,7 @@ class DataHelper():
                     vocab.add(word)
                     word_counts[word]+=1 
         return vocab, word_counts
-
+        """
 if __name__ == "__main__":
     du =DataHelper(100)
     freq_dict = du.word_freq_dict
