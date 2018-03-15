@@ -30,7 +30,7 @@ class Config:
     n_attributes = 1
     dropout = 0.5
     embed_size = 50
-    hidden_size = 1000
+    hidden_size = 100
     batch_size = 32
     current_batch_size = batch_size
     n_epochs = 30
@@ -141,30 +141,34 @@ class RNNModel(Model):
         #runs the entire rnn - "state" is the final state of the lstm
         outputs, state = tf.nn.dynamic_rnn(cell=rnn_cell,
                                            inputs=x, dtype=tf.float32)
-        outputs_drop = tf.nn.dropout(outputs, dropout_rate) 
+        outputs = tf.nn.dropout(outputs, dropout_rate) 
         #outputs_drop = tf.reduce_mean(outputs, axis = 1)
-        outputs_drop = tf.reshape(outputs_drop, [-1, self.config.hidden_size])
-        y = tf.add(tf.matmul(outputs_drop, U), b_2)
-        preds = tf.reshape(y, [-1, self.config.max_length, self.config.n_classes])
+        if self.config.many2one:
+            mask = tf.cast(self.mask_placeholder, dtype = tf.float32)
+            outputs = tf.multiply(outputs, tf.expand_dims(mask, 2))
+            outputs = tf.reduce_mean(outputs, axis = 1)
+        else:
+            outputs = tf.reshape(outputs, [-1, self.config.hidden_size])
+        preds = tf.add(tf.matmul(outputs, U), b_2)
+        if not self.config.many2one:
+            preds = tf.reshape(preds, [-1, self.config.max_length, self.config.n_classes]) 
         return preds
 
     def add_loss_op(self, preds):
         """Adds Ops for the loss function to the computational graph.
-
-        TODO: Compute averaged cross entropy loss for the predictions.
-        Importantly, you must ignore the loss for any masked tokens.
-
-        Hint: You might find tf.boolean_mask useful to mask the losses on masked tokens.
-        Hint: You can use tf.nn.sparse_softmax_cross_entropy_with_logits to simplify your
-                    implementation. You might find tf.reduce_mean useful.
         Args:
             pred: A tensor of shape (batch_size, max_length, n_classes) containing the output of the neural
                   network before the softmax layer.
         Returns:
             loss: A 0-d tensor (scalar)
         """
-        preds = tf.boolean_mask(preds, self.mask_placeholder)
-        labels = tf.boolean_mask(self.labels_placeholder, self.mask_placeholder)
+        labels = self.labels_placeholder
+        if self.config.many2one:
+            labels = tf.reduce_mean(labels, axis = 1) 
+            labels = tf.cast(labels, dtype = tf.int32)
+        else:
+            preds = tf.boolean_mask(preds, self.mask_placeholder)
+            labels = tf.boolean_mask(self.labels_placeholder, self.mask_placeholder)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = labels, logits = preds)
         loss = tf.reduce_mean(loss)
         return loss
@@ -187,7 +191,6 @@ class RNNModel(Model):
 
         returns: [sentence, labels]
         '''
-        #make copy of data
         data_copy = data
         data_copy = self.data_helper.data_as_list_of_tuples(data_copy)
         data_copy = self.format_labels(data_copy)
@@ -239,6 +242,7 @@ class RNNModel(Model):
                 labels_ = [l for l, m in zip(preds[i], mask) if m] # only select elements of mask.
             assert len(labels_) == len(labels_gt)
             ret.append([sentence, labels_gt, labels_])
+        #print("Predictions (sent, true, pred): ", ret)
         return ret
     
 
@@ -255,8 +259,6 @@ class RNNModel(Model):
         The one to one accuracy for predicting tokens as named entities.
         """
         #token_cm = ConfusionMatrix(labels=LBLS)
-
-        #correct_preds, total_correct, total_preds = 0., 0., 0.
         acc_array = []
         for _, labels, labels_  in self.output(sess, examples_raw, examples):
             acc_array.append(accuracy_score(labels, labels_))
@@ -286,19 +288,20 @@ class RNNModel(Model):
         return self.consolidate_predictions(inputs_raw_copy, inputs, preds)
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
-        def preds_many2one(predictions):
+        '''def preds_many2one(predictions):
             int_mask = tf.cast(mask_batch, dtype = tf.float32)
             predictions = tf.multiply(predictions, tf.expand_dims(int_mask, 2))
             predictions = tf.nn.softmax(predictions)
             predictions = tf.reduce_sum(predictions, axis = 1)
             predictions = tf.argmax(predictions, axis = 1)
             return predictions
-
+        '''
         feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
+        axis = 2
         if self.config.many2one:
-            predictions = sess.run(preds_many2one(self.pred), feed_dict=feed)
-        else:
-            predictions = sess.run(tf.argmax(self.pred, axis=2), feed_dict=feed)
+            axis = 1
+        predictions = sess.run(self.pred, feed_dict=feed)
+        predictions = np.argmax(predictions, axis = axis)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
