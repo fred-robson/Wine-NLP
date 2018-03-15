@@ -3,3 +3,8 @@
 *.pyc
 *split_data.py
 *.ipynb_checkpoints/
+*.zip
+*.txt
+*.swp
+*.conll
+*.swo
