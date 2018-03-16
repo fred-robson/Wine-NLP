@@ -9,7 +9,7 @@ from datetime import date
 from util import write_conll, print_sentence
 import sklearn.metrics
 
-FILE_NAME = "Results/hyper_parameters/hyper_parameters_tuning (%s).csv"%date.today()
+FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning (%s).csv"%date.today()
 POSS_LR = [0.5,0.1,0.01]
 POSS_LR = 10**np.random.uniform(-6, -2, 5)
 POSS_EPOCHS = [50]
