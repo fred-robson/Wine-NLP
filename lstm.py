@@ -119,10 +119,11 @@ class RNNModel(Model):
         Returns:
             embeddings: tf.Tensor of shape (None, max_length, n_features*embed_size)
         """
-        embeddings = tf.get_variable("embeddings", initializer = self.pretrained_embeddings)
+        #with tf.variable_scope("RNN", reuse = tf.AUTO_REUSE):
+        embeddings = tf.get_variable("embeddings", initializer = self.pretrained_embeddings,trainable=False)
         embeddings = tf.nn.embedding_lookup(embeddings, self.input_placeholder)
         embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_features* self.config.embed_size])
-        embeddings = tf.cast(embeddings,tf.float32) 
+        embeddings = tf.cast(embeddings, tf.float32)
         return embeddings
 
     def add_prediction_op(self):
@@ -132,7 +133,7 @@ class RNNModel(Model):
         """
         x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
-        
+        #with tf.variable_scope("RNN", reuse = tf.AUTO_REUSE):        
         U = tf.get_variable("OutputWeights", shape = (self.config.hidden_size, self.config.n_classes), initializer = tf.contrib.layers.xavier_initializer())
         b_2 = tf.get_variable("OutputBias", shape = (self.config.n_classes), initializer = tf.zeros_initializer())
         
@@ -145,11 +146,13 @@ class RNNModel(Model):
         #outputs_drop = tf.reduce_mean(outputs, axis = 1)
         if self.config.many2one:
             mask = tf.cast(self.mask_placeholder, dtype = tf.float32)
-            outputs = tf.multiply(outputs, tf.expand_dims(mask, 2))
-            outputs = tf.reduce_mean(outputs, axis = 1)
+            outputs_copy = tf.multiply(outputs, tf.expand_dims(mask, 2)) 
+            outputs = tf.reduce_mean(outputs_copy, axis = 1)
         else:
-            outputs = tf.reshape(outputs, [-1, self.config.hidden_size])
+            outputs = tf.reshape(outputs, [-1, self.config.hidden_size])    
         preds = tf.add(tf.matmul(outputs, U), b_2)
+        #preds = tf.Print(preds, [tf.argmax(tf.nn.softmax(preds), axis = 1)], message = "Pred: ", summarize = self.config.current_batch_size)
+        #preds = tf.Print(preds, [tf.shape(preds)], message = "Pred (Size): ")
         if not self.config.many2one:
             preds = tf.reshape(preds, [-1, self.config.max_length, self.config.n_classes]) 
         return preds
@@ -164,8 +167,13 @@ class RNNModel(Model):
         """
         labels = self.labels_placeholder
         if self.config.many2one:
-            labels = tf.reduce_mean(labels, axis = 1) 
-            labels = tf.cast(labels, dtype = tf.int32)
+            #labels = tf.Print(labels, [labels], message = "True: ", summarize = self.config.max_length) 
+            #labels = tf.Print(labels, [tf.shape(labels)], message = "Shape: ")
+            labels = tf.gather(labels, 0,  axis = 1) 
+            #labels = tf.Print(labels, [labels], message = "True(reduced): ", summarize = self.config.current_batch_size)
+            #labels = tf.cast(labels, dtype = tf.int32)
+           
+            #preds = tf.Print(preds, [tf.argmax(tf.nn.softmax(preds), axis = 1)], message = "Pred: ", summarize = self.config.current_batch_size)
         else:
             preds = tf.boolean_mask(preds, self.mask_placeholder)
             labels = tf.boolean_mask(self.labels_placeholder, self.mask_placeholder)
