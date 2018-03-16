@@ -8,7 +8,7 @@ import sys
 import time
 from datetime import datetime
 from util import Progbar
-
+from tqdm import tqdm
 import tensorflow as tf
 import numpy as np
 import copy
@@ -347,23 +347,16 @@ class RNNModel(Model):
     def fit(self, sess, saver, train_raw, dev_set_raw):
         
         train = self.preprocess_data(train_raw)
-        
-        # merge all summaries and create file writers
-        #merged = tf.summary.merge_all()
-        #train_writer = tf.summary.FileWriter(self.config.summaries_path + '/train',graph=sess.graph)
-        #dev_writer = tf.summary.FileWriter(self.config.summaries_path + '/dev')
-
-        best_result = (0.,0.,0.)
+        best_dev_result = (0.,0.,0.)
+        train_result_best = [] #Corresponding train result to best_dev_result
+        best_epoch = 0
         for epoch in range(self.config.n_epochs):
             print("Epoch %d out of %d"%(epoch + 1, self.config.n_epochs))
             prog = Progbar(target=1 + int(len(train) / self.config.batch_size))
             loss = []
-            for i,minibatch in enumerate(minibatches(train, self.config.batch_size)):
-                #loss_, summary = self.train_on_batch(sess, merged, *minibatch)
-                loss_ = self.train_on_batch(sess, *minibatch)
-                loss.append([loss_])
-                #train_writer.add_summary(summary, i)
-
+            all_minibatches = list(minibatches(train, self.config.batch_size))
+            for minibatch in tqdm(all_minibatches,desc="Training"):
+                loss.append([self.train_on_batch(sess, *minibatch)])
             loss = np.array(loss)
             loss = np.mean(loss)
             print("Loss: ", loss,"\n")
@@ -377,12 +370,14 @@ class RNNModel(Model):
             print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0],result_dev[1],result_dev[2]))
             print("     |-------------------------|\n")
 
-            if result_dev[self.config.result_index] > best_result[self.config.result_index]:
-                best_result = result_dev
+            if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
+                best_dev_result = result_dev
+                train_result_best = result_train
+                best_epoch = epoch
                 if saver:
                     print("New best accuracy! Saving model in %s"%self.config.model_output)
                     saver.save(sess, self.config.model_output)
-        return best_result
+        return best_dev_result,train_result_best, best_epoch
     
     def __init__(self, helper, config, pretrained_embeddings):
         self.data_helper = helper
