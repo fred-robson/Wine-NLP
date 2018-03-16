@@ -99,9 +99,9 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
 
 
 
-def main():
+def main(limit):
 	emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = 10000)
-	data_helper = du.DataHelper(20)
+	data_helper = du.DataHelper(limit)
 
 	f = open(FILE_NAME,"w+")
 	f.write("LR,#Epochs,HS,ACC,F1_W,F1_M\n")
@@ -118,6 +118,10 @@ def main():
 		print("*****************************")
 
 if __name__ == "__main__":
-	main()
+	limit=None
+	if len(args)>1 and str.isdigit(args[1]): 
+        limit = int(args[1])
+        print("Limit of ",limit)
+	main(limit)
 
 	
