@@ -15,7 +15,7 @@ import copy
 from model import Model
 from util import minibatches
 import os
-from sklearn.metrics import accuracy_score
+import sklearn.metrics
 
 class Config:
     """Holds model hyperparams and data information.
@@ -33,11 +33,15 @@ class Config:
     hidden_size = 100
     batch_size = 32
     current_batch_size = batch_size
-    n_epochs = 30
+    n_epochs = 3
     max_grad_norm = 10.
-    lr = 0.001
+    lr = 0.01
 
-    def __init__(self, cell, n_classes = 0, many2one = False):
+    def __init__(self, cell, n_classes = 0, many2one = False,result_index=0):
+        '''
+        @args:
+            - result_index = {Accuracy: 0, F1_W:1, F1_M:2}
+        '''
         self.cell = cell
         self.many2one = many2one
         if n_classes:
@@ -46,6 +50,7 @@ class Config:
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
+        self.result_index = result_index
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
@@ -151,8 +156,6 @@ class RNNModel(Model):
         else:
             outputs = tf.reshape(outputs, [-1, self.config.hidden_size])    
         preds = tf.add(tf.matmul(outputs, U), b_2)
-        #preds = tf.Print(preds, [tf.argmax(tf.nn.softmax(preds), axis = 1)], message = "Pred: ", summarize = self.config.current_batch_size)
-        #preds = tf.Print(preds, [tf.shape(preds)], message = "Pred (Size): ")
         if not self.config.many2one:
             preds = tf.reshape(preds, [-1, self.config.max_length, self.config.n_classes]) 
         return preds
@@ -267,11 +270,24 @@ class RNNModel(Model):
         The one to one accuracy for predicting tokens as named entities.
         """
         #token_cm = ConfusionMatrix(labels=LBLS)
+        def test_accuracy(Y_pred,Y_true):
+            acc = sklearn.metrics.accuracy_score(Y_pred,Y_true)
+            f1_w  = sklearn.metrics.f1_score(Y_pred,Y_true,average="weighted")  
+            f1_m = sklearn.metrics.f1_score(Y_pred,Y_true,average="macro")  
+            return acc,f1_w,f1_m
+
         acc_array = []
-        for _, labels, labels_  in self.output(sess, examples_raw, examples):
+        sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
+        labels_np = np.array(class_labels)
+        predictions_np = np.array(predictions)
+        return test_accuracy(predictions_np,labels_np)
+
+        '''
+        for _, labels, labels_  in :
             acc_array.append(accuracy_score(labels, labels_))
         one_2_one = np.mean(acc_array)
         return one_2_one
+        '''
 
     def output(self, sess, inputs_raw, inputs=None):
         """
@@ -322,28 +338,32 @@ class RNNModel(Model):
     def fit(self, sess, saver, train_raw, dev_set_raw):
         train = self.preprocess_data(train_raw)
         #dev_set = self.preprocess_data(dev_set_raw)
-        best_score = 0.
+        best_result = (0.,0.,0.)
         for epoch in range(self.config.n_epochs):
-            print("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
+            print("Epoch %d out of %d"%(epoch + 1, self.config.n_epochs))
             prog = Progbar(target=1 + int(len(train) / self.config.batch_size))
             loss = []
             for minibatch in minibatches(train, self.config.batch_size):
                 loss.append([self.train_on_batch(sess, *minibatch)])
             loss = np.array(loss)
             loss = np.mean(loss)
-            print("Loss: ", loss)
-            print("")
-            #print(dev_set_raw)
-            score_train  = self.evaluate(sess, train_raw)
-            score = self.evaluate(sess, dev_set_raw)
-            #score = 0.0
-            print("Accuracy | Train: %f , Dev: %f", (score_train, score))
-            if score > best_score:
-                best_score = score
+            print("Loss: ", loss,"\n")
+
+            result_train  = self.evaluate(sess, train_raw)
+            result_dev = self.evaluate(sess, dev_set_raw)
+
+            print("     | Acc      F1_W      F1_M |")
+            print("     |-------------------------|")
+            print("Train| %.3f    %.3f    %.3f |"%(result_train[0],result_train[1],result_train[2]))
+            print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0],result_dev[1],result_dev[2]))
+            print("     |-------------------------|\n")
+
+            if result_dev[self.config.result_index] > best_result[self.config.result_index]:
+                best_result = result_dev
                 if saver:
-                    print("New best accuracy! Saving model in %s", self.config.model_output)
+                    print("New best accuracy! Saving model in %s"%self.config.model_output)
                     saver.save(sess, self.config.model_output)
-        return best_score
+        return best_result
     
     def __init__(self, helper, config, pretrained_embeddings):
         self.data_helper = helper
