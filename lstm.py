@@ -59,6 +59,7 @@ class Config:
         self.output_path = "results/{}/{:%Y%m%d_%H%M%S}_epochs={}_lr={:.8f}_hs={}/".format(self.cell, datetime.now(),Config.n_epochs,Config.lr,Config.hidden_size)
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
+        self.summaries_path = self.output_path + "summaries/"
 
 
 def pad_sequences(data, max_length, many2one = False):
@@ -339,19 +340,29 @@ class RNNModel(Model):
         self.config.current_batch_size = inputs_batch.shape[0]
         feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
                                      dropout=Config.dropout)
-        _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
+        summary, _, loss = sess.run([merged, self.train_op, self.loss], feed_dict=feed)
         return loss
     
     def fit(self, sess, saver, train_raw, dev_set_raw):
+        
         train = self.preprocess_data(train_raw)
-        #dev_set = self.preprocess_data(dev_set_raw)
+        
+        # merge all summaries and create file writers
+        merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(self.summaries_path + '/train',
+                                                      sess.graph)
+        dev_writer = tf.summary.FileWriter(self.summaries_path + '/dev')
+
         best_result = (0.,0.,0.)
         for epoch in range(self.config.n_epochs):
             print("Epoch %d out of %d"%(epoch + 1, self.config.n_epochs))
             prog = Progbar(target=1 + int(len(train) / self.config.batch_size))
             loss = []
-            for minibatch in minibatches(train, self.config.batch_size):
-                loss.append([self.train_on_batch(sess, *minibatch)])
+            for i,minibatch in enumerate(minibatches(train, self.config.batch_size)):
+                loss_, summary = self.train_on_batch(sess, *minibatch)
+                loss.append([loss_])
+                train_writer.add_summary(summary, i)
+
             loss = np.array(loss)
             loss = np.mean(loss)
             print("Loss: ", loss,"\n")
