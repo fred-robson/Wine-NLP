@@ -336,11 +336,12 @@ class RNNModel(Model):
         predictions = np.argmax(predictions, axis = axis)
         return predictions
 
-    def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
+    def train_on_batch(self, sess,  inputs_batch, labels_batch, mask_batch):
         self.config.current_batch_size = inputs_batch.shape[0]
         feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
                                      dropout=Config.dropout)
-        summary, _, loss = sess.run([merged, self.train_op, self.loss], feed_dict=feed)
+        #summary, _, loss = sess.run([merged_summaries, self.train_op, self.loss], feed_dict=feed)
+        _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
     
     def fit(self, sess, saver, train_raw, dev_set_raw):
@@ -348,10 +349,9 @@ class RNNModel(Model):
         train = self.preprocess_data(train_raw)
         
         # merge all summaries and create file writers
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(self.summaries_path + '/train',
-                                                      sess.graph)
-        dev_writer = tf.summary.FileWriter(self.summaries_path + '/dev')
+        #merged = tf.summary.merge_all()
+        #train_writer = tf.summary.FileWriter(self.config.summaries_path + '/train',graph=sess.graph)
+        #dev_writer = tf.summary.FileWriter(self.config.summaries_path + '/dev')
 
         best_result = (0.,0.,0.)
         for epoch in range(self.config.n_epochs):
@@ -359,9 +359,10 @@ class RNNModel(Model):
             prog = Progbar(target=1 + int(len(train) / self.config.batch_size))
             loss = []
             for i,minibatch in enumerate(minibatches(train, self.config.batch_size)):
-                loss_, summary = self.train_on_batch(sess, *minibatch)
+                #loss_, summary = self.train_on_batch(sess, merged, *minibatch)
+                loss_ = self.train_on_batch(sess, *minibatch)
                 loss.append([loss_])
-                train_writer.add_summary(summary, i)
+                #train_writer.add_summary(summary, i)
 
             loss = np.array(loss)
             loss = np.mean(loss)
@@ -397,3 +398,4 @@ class RNNModel(Model):
         self.dropout_placeholder = None
 
         self.build()
+

@@ -109,12 +109,13 @@ def main(limit):
 
     for y_cat in ["province","variety","country","points"]:
 
-        label_helper_points = data_helper.labels_from_Y_cat(y_cat)
+        sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
+        print(sub_data_helper.max_length)
         with open(FILE_NAME,"a") as f: f.write("\n"+y_cat+"\n")
 
         print(y_cat)
         print("*****************************")
-        find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points)
+        find_best_hyperparamaters(y_cat,sub_data_helper,emb_helper,sub_labels_helper)
         print("*****************************")
 
 if __name__ == "__main__":

@@ -66,12 +66,15 @@ class LabelsHelper():
 
 class DataHelper():
 
-    def __init__(self,max_len=None):
+    def __init__(self,max_len=None, data = None):
         '''
         Max-len is useful for testing 
         '''
         self.max_length = 0
-        self.train_data,self.dev_data,self.test_data = self.load_data(max_len)
+        if data is None:
+            self.train_data,self.dev_data,self.test_data = self.load_data(max_len=max_len)
+        else: 
+            self.train_data,self.dev_data,self.test_data = data
         self.X_train = self.train_data[X_cat]
         self.X_dev = self.dev_data[X_cat]
         self.X_test = self.test_data[X_cat]
@@ -90,16 +93,28 @@ class DataHelper():
             else: loaded_data.append(data_frame[:max_len])
         return loaded_data
 
-    def get_Y_cat(self,Y_cat):
-        return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
-    
-    def labels_from_Y_cat(self, Y_cat):
+    def get_Y_cat(self,Y_cat, data_frames = None):
+        if data_frames is None:
+            return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]
+        else:
+            return data_frames[0][Y_cat],data_frames[1][Y_cat],data_frames[2][Y_cat]
+    def labels_from_Y_cat(self, Y_cat, data_frames = None, filter_nan = False):
         '''
         returns: train_labels, dev_labels, test_labels, dict = {label : class}, num_classes  
         '''
-        train_df, dev_df, test_df = self.get_Y_cat(Y_cat)
+        train_df, dev_df, test_df = self.get_Y_cat(Y_cat, data_frames = data_frames)
         batch_dict = {"train" : train_df, "dev": dev_df, "test": test_df }
         return LabelsHelper(batch_dict, Y_cat)
+
+    def get_filtered_data(self, Y_cat):
+        '''
+        returns: new cleaned data frames containing for train, dev, test and corresponding labels
+        '''
+        X_cat = "description"
+        new_cats = [X_cat, Y_cat]
+        train_df, dev_df, test_df = self.train_data[new_cats].copy().dropna(axis=0),   self.dev_data[new_cats].copy().dropna(axis=0),  self.test_data[new_cats].copy().dropna(axis=0)
+        data_frames = [train_df, dev_df, test_df]
+        return DataHelper(data = data_frames), self.labels_from_Y_cat(Y_cat, data_frames = data_frames, filter_nan = True)
 
     def discretize(self,Y,num_categories=20):
         '''
@@ -224,10 +239,19 @@ class DataHelper():
         """
 if __name__ == "__main__":
     du =DataHelper(100)
-    freq_dict = du.word_freq_dict
-    print (json.dumps(freq_dict, indent=1))
-    print(len(du.vocab))
-    points = du.labels_from_Y_cat("points")
-    print(points.train_classes)
-    print(points.num_classes)
+    train = du.train_data
+    feature = ["description", "price"]
+    sub_du, label_help = du.get_filtered_data("price")
+    train_df = sub_du.train_data
+    print("Shape:", train[feature])
+    print("num nan:", train[feature].isnull().sum())
+    print("Shape after drop (axis = 0): ", train_df)
+    print("")        
+
+    #freq_dict = du.word_freq_dict
+    #print (json.dumps(freq_dict, indent=1))
+    #print(len(du.vocab))
+    #points = du.labels_from_Y_cat("points")
+    #print(points.train_classes)
+    #print(points.num_classes)
     #print(du.discretize("price",20))
