@@ -10,8 +10,8 @@ from util import write_conll, print_sentence
 import sklearn.metrics
 
 FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning (%s).csv"%date.today()
-POSS_LR = [0.5,0.1,0.01]
-POSS_LR = 10**np.random.uniform(-6, -2, 5)
+#POSS_LR = 10**np.random.uniform(-6, -2, 5)
+POSS_LR = [0.1]
 POSS_EPOCHS = [50]
 POSS_HIDDEN_SIZE = [50,100,200]
 
@@ -107,7 +107,7 @@ def main(limit):
     f.write("LR,#Epochs,HS,ACC,F1_W,F1_M\n")
     f.close()
 
-    for y_cat in ["price","province","variety","country","points"]:
+    for y_cat in ["province","variety","country","points"]:
 
         label_helper_points = data_helper.labels_from_Y_cat(y_cat)
         with open(FILE_NAME,"a") as f: f.write("\n"+y_cat+"\n")
@@ -118,11 +118,12 @@ def main(limit):
         print("*****************************")
 
 if __name__ == "__main__":
-    limit=None
+    limit = None
     args = sys.argv
     if len(args)>1 and str.isdigit(args[1]): 
         limit = int(args[1])
         print("Limit of ",limit)
+    print(limit)
     main(limit)
 
     

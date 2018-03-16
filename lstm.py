@@ -46,13 +46,20 @@ class Config:
         self.many2one = many2one
         if n_classes:
             self.n_classes = n_classes
-        self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
-        self.model_output = self.output_path + "model.weights"
-        self.eval_output = self.output_path + "results.txt"
+        self.update_outputs()
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.result_index = result_index
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
+
+    def update_outputs(self):
+        '''
+        Updates the output path based on changes to the Config_File
+        '''
+        self.output_path = "results/{}/{:%Y%m%d_%H%M%S}_epochs={}_lr={:.8f}_hs={}/".format(self.cell, datetime.now(),Config.n_epochs,Config.lr,Config.hidden_size)
+        self.model_output = self.output_path + "model.weights"
+        self.eval_output = self.output_path + "results.txt"
+
 
 def pad_sequences(data, max_length, many2one = False):
     """Ensures each input-output seqeunce pair in @data is of length
