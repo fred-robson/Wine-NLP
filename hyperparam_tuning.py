@@ -4,7 +4,7 @@ import tensorflow as tf
 import data_utils as du
 import pandas as pd
 import numpy as np
-import time
+import time,sys
 from datetime import date
 from util import write_conll, print_sentence
 import sklearn.metrics
@@ -119,6 +119,7 @@ def main(limit):
 
 if __name__ == "__main__":
     limit=None
+    args = sys.argv
     if len(args)>1 and str.isdigit(args[1]): 
         limit = int(args[1])
         print("Limit of ",limit)
