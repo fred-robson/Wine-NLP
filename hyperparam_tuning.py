@@ -5,14 +5,13 @@ import data_utils as du
 import pandas as pd
 import numpy as np
 import time,sys
-from datetime import date
+from datetime import datetime
 from util import write_conll, print_sentence
 import sklearn.metrics
 
-FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning (%s).csv"%date.today()
-#POSS_LR = 10**np.random.uniform(-6, -2, 5)
-POSS_LR = [0.1]
-POSS_EPOCHS = [50]
+FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
+POSS_LR = 10**np.random.uniform(-6, -2, 5)
+POSS_EPOCHS = [20]
 POSS_HIDDEN_SIZE = [50,100,200]
 
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
@@ -56,12 +55,16 @@ def run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper):
 
         with tf.Session() as session:
             session.run(init)
-            best_result = model.fit(session, saver, train_raw, dev_raw)
-            print(best_result)
+            best_result_dev,corresponding_train,num_epochs = model.fit(session, saver, train_raw, dev_raw)
+            print(best_result_dev)
 
-    return best_result
+    return best_result_dev,corresponding_train,num_epochs
 
 def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
+    '''
+    Loops through all of the parameters at the top of the file and stores the best output in 
+    FILE_NAME at the top of the file 
+    '''
 
     def set_config(config,lr,epochs,hidden_size):
         config.lr = lr
@@ -69,11 +72,12 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
         config.hidden_size = hidden_size
         return config
 
-    def write_param_results(param,result):
+    def write_param_results(param,dev_result,train_result,num_epochs):
         with open(FILE_NAME,"a") as f: 
             for param in p: f.write(str(param)+",")
-            for r in result[:-1]: f.write(str(r)+",")
-            f.write(str(result[-1])+"\n")
+            for r in train_result: f.write(str(r)+",")
+            for r in dev_result: f.write(str(r)+",")
+            f.write(str(num_epochs))
 
     possibilities = []
     for lr in POSS_LR:
@@ -87,13 +91,13 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
 
     for p in possibilities: 
         config = set_config(config,*p)
-        best_result = run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper)
-        param2results[p] = best_result
-        write_param_results(p,best_result)
+        best_result_dev,corresponding_train,best_epoch = run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper)
+        param2results[p] = best_result_dev
+        write_param_results(p,best_result_dev,corresponding_train,best_epoch)
     
     best_params = max(param2results,key = lambda k:param2results[k][RESULT_INDEX])
-    open(FILE_NAME,"a").write("Best\n")
-    write_param_results(best_params,param2results[best_params])
+    #with open(FILE_NAME,"a") as f: f.write("Best\n")
+    #write_param_results(best_params,param2results[best_params])
     return best_params,param2results[best_params]
     
 
@@ -104,7 +108,7 @@ def main(limit):
     data_helper = du.DataHelper(limit)
 
     f = open(FILE_NAME,"w+")
-    f.write("LR,#Epochs,HS,ACC,F1_W,F1_M\n")
+    f.write("LR,#Epochs,HS,dev_ACC,dev_F1_W,dev_F1_M,train_ACC,train_F1_W,train_F1_M,best_epoch\n")
     f.close()
 
     for y_cat in ["province","variety","country","points"]:
@@ -123,7 +127,6 @@ if __name__ == "__main__":
     if len(args)>1 and str.isdigit(args[1]): 
         limit = int(args[1])
         print("Limit of ",limit)
-    print(limit)
     main(limit)
 
     
