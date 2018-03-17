@@ -348,7 +348,7 @@ class RNNModel(Model):
         
         train = self.preprocess_data(train_raw)
         best_dev_result = (0.,0.,0.)
-        train_result_best = [] #Corresponding train result to best_dev_result
+        train_result_best = (0.,0.,0.) #Corresponding train result to best_dev_result
         best_epoch = 0
         for epoch in range(self.config.n_epochs):
             print("Epoch %d out of %d"%(epoch + 1, self.config.n_epochs))

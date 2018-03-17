@@ -10,7 +10,7 @@ from util import write_conll, print_sentence
 import sklearn.metrics
 
 FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
-POSS_LR = 10**np.random.uniform(-6, -2, 5)
+POSS_LR = 10**np.random.uniform(-6, -2, 4)
 POSS_EPOCHS = [50]
 POSS_HIDDEN_SIZE = [50,100,200]
 
@@ -72,12 +72,12 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
         config.hidden_size = hidden_size
         return config
 
-    def write_param_results(param,dev_result,train_result,num_epochs):
+    def write_param_results(p,dev_result,train_result,num_epochs):
         with open(FILE_NAME,"a") as f: 
             for param in p: f.write(str(param)+",")
             for r in train_result: f.write(str(r)+",")
             for r in dev_result: f.write(str(r)+",")
-            f.write(str(num_epochs))
+            f.write(str(num_epochs)+"\n")
 
     possibilities = []
     for lr in POSS_LR:
@@ -96,27 +96,24 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
         write_param_results(p,best_result_dev,corresponding_train,best_epoch)
     
     best_params = max(param2results,key = lambda k:param2results[k][RESULT_INDEX])
-    #with open(FILE_NAME,"a") as f: f.write("Best\n")
-    #write_param_results(best_params,param2results[best_params])
     return best_params,param2results[best_params]
     
 
 
 
 def main(limit):
-    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = 10000)
+    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = False)
     data_helper = du.DataHelper(limit)
 
     f = open(FILE_NAME,"w+")
     f.write("LR,#Epochs,HS,dev_ACC,dev_F1_W,dev_F1_M,train_ACC,train_F1_W,train_F1_M,best_epoch\n")
     f.close()
 
-    for y_cat in ["province","variety","country","points"]:
+    for y_cat in ["price","province","variety","country","points"]:
 
         sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
         print(sub_data_helper.max_length)
         with open(FILE_NAME,"a") as f: f.write("\n"+y_cat+"\n")
-
         print(y_cat)
         print("*****************************")
         find_best_hyperparamaters(y_cat,sub_data_helper,emb_helper,sub_labels_helper)
