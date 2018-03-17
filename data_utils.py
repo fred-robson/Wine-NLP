@@ -256,6 +256,7 @@ if __name__ == "__main__":
     feature = ["price"]
     sub_du, label_help = du.get_filtered_data("price")
     train_df = sub_du.train_data
+    print(train_df)
     print(sub_du.descritize([train_df, train_df, train_df], y_cat = "price"))
     print("")        
 
