@@ -59,6 +59,7 @@ class Config:
         self.output_path = "results/{}/{:%Y%m%d_%H%M%S}_epochs={}_lr={:.8f}_hs={}/".format(self.cell, datetime.now(),Config.n_epochs,Config.lr,Config.hidden_size)
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
+        self.summaries_path = self.output_path + "summaries/"
 
 
 def pad_sequences(data, max_length, many2one = False):
@@ -335,14 +336,16 @@ class RNNModel(Model):
         predictions = np.argmax(predictions, axis = axis)
         return predictions
 
-    def train_on_batch(self, sess, inputs_batch, labels_batch, mask_batch):
+    def train_on_batch(self, sess,  inputs_batch, labels_batch, mask_batch):
         self.config.current_batch_size = inputs_batch.shape[0]
         feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
                                      dropout=Config.dropout)
+        #summary, _, loss = sess.run([merged_summaries, self.train_op, self.loss], feed_dict=feed)
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
     
     def fit(self, sess, saver, train_raw, dev_set_raw):
+        
         train = self.preprocess_data(train_raw)
         best_dev_result = (0.,0.,0.)
         train_result_best = [] #Corresponding train result to best_dev_result
@@ -390,3 +393,4 @@ class RNNModel(Model):
         self.dropout_placeholder = None
 
         self.build()
+
