@@ -9,7 +9,7 @@ import numpy as np
 from collections import Counter,defaultdict
 import copy,math
 import json
-
+from sklearn.cluster import KMeans
 
 train_data_file = "data/train_utf.pkl"  
 dev_data_file = "data/dev_utf.pkl"
@@ -115,13 +115,25 @@ class DataHelper():
         train_df, dev_df, test_df = self.train_data[new_cats].copy().dropna(axis=0),   self.dev_data[new_cats].copy().dropna(axis=0),  self.test_data[new_cats].copy().dropna(axis=0)
         data_frames = [train_df, dev_df, test_df]
         return DataHelper(data = data_frames), self.labels_from_Y_cat(Y_cat, data_frames = data_frames, filter_nan = True)
+   
+   
+    def descritize(self, data, y_cat,  k = 20):
+        '''
+        assumes this is data of form [train_df, dev_df, test_df]
+        '''
+        frames = pd.concat(data.copy())
+        model = KMeans(n_clusters = k)
+        model.fit(frames[y_cat].as_matrix().reshape(-1,1))
+        for i, frame in enumerate(data):
+           data[i][y_cat] = model.predict(frame[y_cat].copy().as_matrix().reshape(-1,1))
+        return data
 
-    def discretize(self,Y,num_categories=20):
+        """
+        def discretize(self,Y,num_categories=20):
         '''
         Converts a continous distribution into an equally split discrete distribution
         Assumes Y is a tuple of [train,dev,test]
-        '''
-        
+        '''        
         all_data = np.array([])
         for data in Y:
             all_data = np.append(all_data,data)
@@ -144,6 +156,7 @@ class DataHelper():
             ret.append(discretized)
 
         return ret
+        """
 
 
     def generate_vocab_and_word_frequencies(self):
@@ -240,12 +253,10 @@ class DataHelper():
 if __name__ == "__main__":
     du =DataHelper(100)
     train = du.train_data
-    feature = ["description", "price"]
+    feature = ["price"]
     sub_du, label_help = du.get_filtered_data("price")
     train_df = sub_du.train_data
-    print("Shape:", train[feature])
-    print("num nan:", train[feature].isnull().sum())
-    print("Shape after drop (axis = 0): ", train_df)
+    print(sub_du.descritize([train_df, train_df, train_df], y_cat = "price"))
     print("")        
 
     #freq_dict = du.word_freq_dict
