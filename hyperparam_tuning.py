@@ -11,7 +11,7 @@ import sklearn.metrics
 
 FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
 POSS_LR = 10**np.random.uniform(-6, -2, 5)
-POSS_EPOCHS = [20]
+POSS_EPOCHS = [50]
 POSS_HIDDEN_SIZE = [50,100,200]
 
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
