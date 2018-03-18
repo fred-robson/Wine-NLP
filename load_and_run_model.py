@@ -62,9 +62,6 @@ def main(model_path):
 
 
 
-
-
-
 if __name__ == "__main__":
     args = sys.argv
     model_path = None
