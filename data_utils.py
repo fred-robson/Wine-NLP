@@ -115,6 +115,8 @@ class DataHelper():
         new_cats = [X_cat, Y_cat]
         train_df, dev_df, test_df = self.train_data[new_cats].copy().dropna(axis=0),   self.dev_data[new_cats].copy().dropna(axis=0),  self.test_data[new_cats].copy().dropna(axis=0)
         data_frames = [train_df, dev_df, test_df]
+        if type(train_df[Y_cat].dtype) is np.float64:
+            data_frames = descritize(data_frames,Y_cat)
         return DataHelper(data = data_frames), self.labels_from_Y_cat(Y_cat, data_frames = data_frames, filter_nan = True)
    
    
