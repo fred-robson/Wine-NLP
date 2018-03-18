@@ -417,9 +417,9 @@ class RNNModel(Model):
         if epoch == 0:
             with open(self.config.epochs_csv,"w+") as f:
                 f.write("Y_cat,"+self.Y_cat+"\n")
-                f.write("Limit,"+self.limit+"\n")
-                f.write("LR,"+str(self.config.lr))
-                f.write("HS,"+str(self.config.hidden_size))
+                f.write("Limit,"+str(self.limit)+"\n")
+                f.write("LR,"+str(self.config.lr)+"\n")
+                f.write("HS,"+str(self.config.hidden_size)+"\n")
                 f.write("Loss,dev_ACC,dev_F1_W,dev_F1_M,train_ACC,train_F1_W,train_F1_M,epoch\n")
 
         with open(self.config.epochs_csv,"a") as f:

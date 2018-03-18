@@ -19,9 +19,9 @@ def set_config(config,lr,epochs,hidden_size):
 
 
 def fit_model(y_cat,hs,lr,epochs,limit,test_batch):
-    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = test_batch)
     data_helper = du.DataHelper(limit)
     sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
+    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = test_batch)
     config = Config("lstm", n_classes = sub_labels_helper.num_classes, many2one = True,result_index = 0)
     config = set_config(config,lr,epochs,hs)
     run_for_y_cat(y_cat,config,sub_data_helper,sub_labels_helper,emb_helper,limit)
