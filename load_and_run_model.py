@@ -9,11 +9,6 @@ import pickle
 from hyperparam_tuning import RESULT_INDEX
 import tensorflow as tf
 
-def load_model():
-    pass
-
-def run_on_model():
-    pass
 
 
 
@@ -32,13 +27,6 @@ def get_data_for_model(data_helper,label_helper,emb_helper,config):
     test_raw = [X_train_indices, label_helper.test_classes]
     config.embed_size = embeddings.shape[1]
     return test_raw,embeddings
-
-def run_test(model,sess,test_raw):
-    return model.output()
-
-
-
-    
 
 
 def main(model_path):
