@@ -21,6 +21,62 @@ X_cat = "description"
 def data_frame_as_list(df):
     return [[row] for row in df.as_matrix()]
 
+class LabelsHelperMulti():
+    num_classes_max = 0 # the number of classes of the attribute with the most classes (gets set in init)
+    def __init__(self, batch_dict, attributes):
+        '''
+        batch_dict is dict of form: {"train" : data_frame, "dev" : data_frame, "test" : data_frame}
+        where data_frame is the full data_frame
+        '''
+        self.attributes = attributes
+        self.batch_dict = batch_dict
+        self.helper_dict = self.generate_label_helper_dict()
+        self.labels_list_dict = self.group_attributes_as_list()
+        self.classes_list_dict = self.group_attributes_as_list(as_classes = True)
+        self.attribute_mask = self.create_attribute_mask()
+        #self.train_labels, self.dev_labels, self.test_labels = data_frame_as_list(self.test_df)
+
+        #self.lbl_2_class, self.class_2_lbl, self.num_classes = self.characterize_labels()
+        #self.train_classes = self.label_list_2_class_list(self.train_labels)
+        #self.dev_classes =self.label_list_2_class_list(self.dev_labels)
+        #self.test_classes =self.label_list_2_class_list(self.test_labels)
+
+    def generate_label_helper_dict(self):    
+        lbl_helper_dict = {}
+        for category in self.attributes:
+            sub_batch_dict = copy.deepcopy(self.batch_dict)
+            sub_batch_dict["train"] = sub_batch_dict["train"][category]
+            sub_batch_dict["dev"] = sub_batch_dict["dev"][category]
+            sub_batch_dict["test"] = sub_batch_dict["test"][category]
+            lbl_helper = LabelsHelper(sub_batch_dict, category)
+            lbl_helper_dict[category] = lbl_helper
+            if lbl_helper.num_classes > self.num_classes_max:
+                self.num_classes_max = lbl_helper.num_classes
+        return lbl_helper_dict
+
+    def group_attributes_as_list(self, as_classes = False):
+        attribute_dict = {}
+        for cat in self.attributes: 
+            helper = self.helper_dict[cat]
+            if as_classes:
+                list_dict = helper.labels_list_dict 
+            else:
+                list_dict = helper.classes_list_dict
+            for key, value in list_dict.items():
+                if attribute_dict.get(key, "") is "":
+                    attribute_dict[key] = [value]
+                else:
+                    attribute_dict[key].append(value)
+        for key, value in attribute_dict.items():
+            attribute_dict[key] = list(map(list, zip(*value)))
+        return attribute_dict
+
+    def create_attribute_mask(self):
+        mask = np.zeros((len(self.attributes),self.num_classes_max ))
+        for i,attribute in enumerate(self.attributes):
+            num_classes = self.helper_dict[attribute].num_classes
+            mask[i,1:num_classes] = 1
+        return mask
 
 class LabelsHelper():
 
@@ -29,16 +85,19 @@ class LabelsHelper():
         batch_dict is dict of form: {"train" : data_frame, "dev" : data_frame, "test" : data_frame}
         '''
         self.name = Y_cat
+        self.batch_dict = batch_dict
         self.train_df = batch_dict["train"]
         self.dev_df = batch_dict["dev"]
         self.test_df = batch_dict["test"]
         self.train_labels = data_frame_as_list(self.train_df)
         self.dev_labels =data_frame_as_list(self.dev_df)
         self.test_labels = data_frame_as_list(self.test_df)
+        self.labels_list_dict = {"train" : self.train_labels, "dev" : self.dev_labels, "test": self.test_labels}
         self.lbl_2_class, self.class_2_lbl, self.num_classes = self.characterize_labels()
         self.train_classes = self.label_list_2_class_list(self.train_labels)
         self.dev_classes =self.label_list_2_class_list(self.dev_labels)
         self.test_classes =self.label_list_2_class_list(self.test_labels)
+        self.classes_list_dict = {"train": self.train_classes, "dev" : self.dev_classes, "test" : self.test_classes}
 
     def label_list_2_class_list(self, label_list):
         class_list = []
@@ -53,16 +112,17 @@ class LabelsHelper():
         lbl_2_class = {}
         class_2_lbl = {}
         _class = 0
+        lbl_2_class[np.nan] = _class # the 0-th class is reserved for missing labels
+        class_2_lbl[_class] = np.nan
         for batch in [self.train_labels, self.dev_labels, self.test_labels]:
             for label in batch:
                 if type(label) is list:
                     label = label[0]
                 if lbl_2_class.get(label, "") is "":
+                    _class+=1
                     lbl_2_class[label] = _class
                     class_2_lbl[_class] = label
-                    _class += 1
-        return lbl_2_class, class_2_lbl, _class
-
+        return lbl_2_class, class_2_lbl, _class+1
 
 class DataHelper():
 
@@ -108,7 +168,7 @@ class DataHelper():
 
     def get_filtered_data(self, Y_cat):
         '''
-        returns: new cleaned data frames containing for train, dev, test and corresponding labels
+        returns: new DataHelper and new LabelsHelper without examples that have corresponding labels which are NaN
         '''
         X_cat = "description"
         new_cats = [X_cat, Y_cat]
@@ -219,8 +279,6 @@ class DataHelper():
         Converts the ["I","am"...."am"] into a vector where the index represents a word count
         '''
         ret = []
-
-
         if all_X is None: 
             all_X =[self.X_train,self.X_dev,self.X_test] 
 
@@ -233,8 +291,8 @@ class DataHelper():
             ret.append(X_vectorized)
         return ret  
 
-    """
-    def generate_vocab_and_word_frequencies(self):
+        """
+        def generate_vocab_and_word_frequencies(self):
         '''
         Generates the vocabulary and word frequencies in train, test and dev
         Returns: set of words making up vocab, dictionary of word frequencies {word: count}
@@ -250,16 +308,30 @@ class DataHelper():
                     word_counts[word]+=1 
         return vocab, word_counts
         """
-if __name__ == "__main__":
-    du =DataHelper(100)
+if __name__ == "__main__": 
+    '''du =DataHelper(100)
     train = du.train_data
     feature = ["price"]
     sub_du, label_help = du.get_filtered_data("price")
     train_df = sub_du.train_data
     print(train_df)
     print(sub_du.descritize([train_df, train_df, train_df], y_cat = "price"))
-    print("")        
-
+    print("") 
+    '''
+    d = {'col1': ["hi", "hi", "hi"], 'col2': [np.NaN, "sup", "woah"], 'col3': [81, 74, 90]}
+    df = pd.DataFrame(data=d)
+    print(df)
+    g = df.as_matrix()
+    print(df.as_matrix())
+    print(type(g[0, 0]))
+    print(type(g[0, 1]))
+    batch_dict = {"train" : df, "dev" : df, "test" : df}
+    categories = ['col1', 'col2', 'col3']
+    lh_multi = LabelsHelperMulti(batch_dict, categories)
+    print(lh_multi.num_classes_max)
+    print(lh_multi.labels_list_dict['train'])
+    print(lh_multi.classes_list_dict['train'])
+    print(lh_multi.attribute_mask)
     #freq_dict = du.word_freq_dict
     #print (json.dumps(freq_dict, indent=1))
     #print(len(du.vocab))
