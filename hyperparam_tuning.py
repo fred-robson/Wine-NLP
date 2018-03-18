@@ -8,6 +8,7 @@ import time,sys
 from datetime import datetime
 from util import write_conll, print_sentence
 import sklearn.metrics
+import inspect
 
 FILE_NAME = "results/hyper_parameters/hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
 POSS_LR = 10**np.random.uniform(-6, -2, 4)
@@ -17,7 +18,7 @@ POSS_HIDDEN_SIZE = [50,100,200]
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
 
 
-def run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper):
+def run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper,limit):
     #initialize helpers
 
 
@@ -47,7 +48,7 @@ def run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper):
     with tf.Graph().as_default():
         print("Building model...",)
         start = time.time()
-        model = RNNModel(data_helper, config, embeddings)
+        model = RNNModel(data_helper, config, embeddings,y_cat,emb_helper.test_batch,limit)
         print("took %.2f seconds"%(time.time() - start))
         
         init = tf.global_variables_initializer()
@@ -60,7 +61,7 @@ def run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper):
 
     return best_result_dev,corresponding_train,num_epochs
 
-def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
+def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points,limit):
     '''
     Loops through all of the parameters at the top of the file and stores the best output in 
     FILE_NAME at the top of the file 
@@ -86,12 +87,13 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
                 possibilities.append((lr,epochs,hidden_size))
 
 
-    config = Config("lstm", n_classes = label_helper_points.num_classes, many2one = True,result_index = RESULT_INDEX)
+
     param2results = {}
 
     for p in possibilities: 
+        config = Config("lstm", n_classes = label_helper_points.num_classes, many2one = True,result_index = RESULT_INDEX)
         config = set_config(config,*p)
-        best_result_dev,corresponding_train,best_epoch = run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper)
+        best_result_dev,corresponding_train,best_epoch = run_for_y_cat(y_cat,config,data_helper,label_helper_points,emb_helper,limit)
         param2results[p] = best_result_dev
         write_param_results(p,best_result_dev,corresponding_train,best_epoch)
     
@@ -102,21 +104,21 @@ def find_best_hyperparamaters(y_cat,data_helper,emb_helper,label_helper_points):
 
 
 def main(limit):
-    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = False)
+    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = 1000)
     data_helper = du.DataHelper(limit)
 
     f = open(FILE_NAME,"w+")
     f.write("LR,#Epochs,HS,dev_ACC,dev_F1_W,dev_F1_M,train_ACC,train_F1_W,train_F1_M,best_epoch\n")
     f.close()
 
-    for y_cat in ["price","province","variety","country","points"]:
+    for y_cat in ["country","price","province","variety","points"]:
 
         sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
         print(sub_data_helper.max_length)
         with open(FILE_NAME,"a") as f: f.write("\n"+y_cat+"\n")
         print(y_cat)
         print("*****************************")
-        find_best_hyperparamaters(y_cat,sub_data_helper,emb_helper,sub_labels_helper)
+        find_best_hyperparamaters(y_cat,sub_data_helper,emb_helper,sub_labels_helper,limit)
         print("*****************************")
 
 if __name__ == "__main__":
