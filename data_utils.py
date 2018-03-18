@@ -71,8 +71,9 @@ class DataHelper():
         Max-len is useful for testing 
         '''
         self.max_length = 0
+        self.limit = max_len
         if data is None:
-            self.train_data,self.dev_data,self.test_data = self.load_data(max_len=max_len)
+            self.train_data,self.dev_data,self.test_data = self.load_data(max_len=self.limit)
         else: 
             self.train_data,self.dev_data,self.test_data = data
         self.X_train = self.train_data[X_cat]

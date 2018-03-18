@@ -14,8 +14,9 @@ import numpy as np
 import copy
 from model import Model
 from util import minibatches
-import os
+import os,pickle
 import sklearn.metrics
+
 
 class Config:
     """Holds model hyperparams and data information.
@@ -37,7 +38,7 @@ class Config:
     max_grad_norm = 10.
     lr = 0.01
 
-    def __init__(self, cell, n_classes = 0, many2one = False,result_index=0):
+    def __init__(self, cell, n_classes = 0, many2one = False,result_index=0,output_path=None):
         '''
         @args:
             - result_index = {Accuracy: 0, F1_W:1, F1_M:2}
@@ -46,20 +47,25 @@ class Config:
         self.many2one = many2one
         if n_classes:
             self.n_classes = n_classes
-        self.update_outputs()
+        self.update_outputs(output_path)
         self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
         self.result_index = result_index
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
-    def update_outputs(self):
+    def update_outputs(self,output_path):
         '''
         Updates the output path based on changes to the Config_File
         '''
-        self.output_path = "results/{}/{:%Y%m%d_%H%M%S}_epochs={}_lr={:.8f}_hs={}/".format(self.cell, datetime.now(),Config.n_epochs,Config.lr,Config.hidden_size)
+        if output_path == None:
+            self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
+        else: 
+            self.output_path = output_path
         self.model_output = self.output_path + "model.weights"
         self.eval_output = self.output_path + "results.txt"
         self.summaries_path = self.output_path + "summaries/"
+        self.desc_output = self.output_path+"desc.pkl"
+        self.desc_txt = self.output_path+"desc.txt"
 
 
 def pad_sequences(data, max_length, many2one = False):
@@ -98,6 +104,7 @@ def pad_sequences(data, max_length, many2one = False):
         ret.append((sentence_copy[:max_length], labels_copy[:max_length] , mask[:max_length]))
         ### END YOUR CODE ###
     return ret
+
 
 class RNNModel(Model):
     """
@@ -347,8 +354,8 @@ class RNNModel(Model):
     def fit(self, sess, saver, train_raw, dev_set_raw):
         
         train = self.preprocess_data(train_raw)
-        best_dev_result = (0.,0.,0.)
-        train_result_best = (0.,0.,0.) #Corresponding train result to best_dev_result
+        best_dev_result = (-1.,-1.,-1.)
+        train_result_best = (-1.,-1.,-1.) #Corresponding train result to best_dev_result
         best_epoch = 0
         for epoch in range(self.config.n_epochs):
             print("Epoch %d out of %d"%(epoch + 1, self.config.n_epochs))
@@ -377,15 +384,40 @@ class RNNModel(Model):
                 if saver:
                     print("New best accuracy! Saving model in %s"%self.config.model_output)
                     saver.save(sess, self.config.model_output)
+                    self.save_model_description()
+                    
         return best_dev_result,train_result_best, best_epoch
-    
-    def __init__(self, helper, config, pretrained_embeddings):
+
+    def save_model_description(self):
+        '''
+        Saves the following information: 
+        - Y_cat 
+        - Data Limit
+        - Test Batch
+        - Config
+        '''
+        with open(self.config.desc_output,"wb+") as f:
+            with open(self.config.desc_txt,"w+") as g:
+                all_info = {}
+                all_info["config"] = {a:getattr(self.config,a) for a in dir(self.config) if not a.startswith('__') and not a=="update_outputs"}
+                all_info["limit"] = self.limit
+                all_info["Y_cat"] = self.Y_cat
+                all_info["test_batch"] = self.test_batch
+                pickle.dump(all_info,f)
+                g.write(str(all_info))
+
+
+
+        
+    def __init__(self, helper, config, pretrained_embeddings,Y_cat=None,test_batch=None,limit=None):
         self.data_helper = helper
         self.config = config
         self.max_length = min(Config.max_length, helper.max_length)
         Config.max_length = self.max_length
         self.pretrained_embeddings = pretrained_embeddings
-
+        self.Y_cat = Y_cat
+        self.test_batch = test_batch
+        self.limit = limit
         # Defining placeholders.
         self.input_placeholder = None
         self.labels_placeholder = None
