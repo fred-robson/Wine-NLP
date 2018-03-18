@@ -66,6 +66,7 @@ class Config:
         self.summaries_path = self.output_path + "summaries/"
         self.desc_output = self.output_path+"desc.pkl"
         self.desc_txt = self.output_path+"desc.txt"
+        self.epochs_csv = self.output_path+"epochs.csv"
 
 
 def pad_sequences(data, max_length, many2one = False):
@@ -385,6 +386,8 @@ class RNNModel(Model):
                     print("New best accuracy! Saving model in %s"%self.config.model_output)
                     saver.save(sess, self.config.model_output)
                     self.save_model_description()
+
+            self.save_epoch_outputs(epoch,loss,result_dev,result_train)
                     
         return best_dev_result,train_result_best, best_epoch
 
@@ -405,6 +408,22 @@ class RNNModel(Model):
                 all_info["test_batch"] = self.test_batch
                 pickle.dump(all_info,f)
                 g.write(str(all_info))
+
+    def save_epoch_outputs(self,epoch,loss,result_dev,result_train):
+        '''
+        Saves each epoch's output to the csv. Note that opens and closes CSV every time, so can track what is happening
+        even with screen 
+        '''
+        if epoch == 0:
+            with open(self.config.epochs_csv,"w+") as f:
+                f.write("Loss,dev_ACC,dev_F1_W,dev_F1_M,train_ACC,train_F1_W,train_F1_M,epoch\n")
+
+        with open(self.config.epochs_csv,"a") as f:
+            f.write(str(loss)+",")
+            for r in result_dev:f.write(str(r)+",") 
+            for r in result_train:f.write(str(r)+",") 
+            f.write(str(epoch)+"\n")
+
 
 
 
