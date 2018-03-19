@@ -202,53 +202,12 @@ class DataHelper():
         X_cat = "description"
         new_cats = [X_cat, Y_cat]
         train_df, dev_df, test_df = self.train_data[new_cats].copy(),   self.dev_data[new_cats].copy(),  self.test_data[new_cats].copy()
-        train_df, dev_df, test_df = train_df[~train_df[Y_cat].isin([NON_TOK])], dev_df[~dev_df[Y_cat].isin([NON_TOK])], test_df[~test_df[Y_cat].isin([NON_TOK])]
+        train_df, dev_df, test_df = train_df[~train_df[Y_cat].isin([NAN_TOK])], dev_df[~dev_df[Y_cat].isin([NAN_TOK])], test_df[~test_df[Y_cat].isin([NAN_TOK])]
         data_frames = [train_df, dev_df, test_df]
         if type(train_df[Y_cat].dtype) is np.float64:
             data_frames = descritize(data_frames,Y_cat)
         return DataHelper(data = data_frames), self.labels_from_Y_cat(Y_cat, data_frames = data_frames, filter_nan = True)
    
-        """
-        def descritize(self, data, y_cat,  k = 20):
-        assumes this is data of form [train_df, dev_df, test_df]
-        returns: [train_df, dev_tf, test_df] (discretized)
-        frames = pd.concat(data.copy()).dropna(axis=0)
-        model = KMeans(n_clusters = k)
-        model.fit(frames[y_cat].as_matrix().reshape(-1,1))
-        for i, frame in enumerate(data):
-            null_mask = pd.isnull(frame[y_cat])
-            print(frame)
-
-            data[i][y_cat] = model.predict(frame[y_cat].copy().as_matrix().reshape(-1,1))
-        return data
-
-        def discretize(self,Y,num_categories=20):
-        Converts a continous distribution into an equally split discrete distribution
-        Assumes Y is a tuple of [train,dev,test]
-        all_data = np.array([])
-        for data in Y:
-            all_data = np.append(all_data,data)
-        all_data = all_data.astype(float)
-        all_data = np.sort(all_data)
-        all_data = all_data[~np.isnan(all_data)]
-
-        discrete_areas = np.array_split(all_data,num_categories)
-        bins = [b[0] for b in discrete_areas]
-        bins.append(float("inf"))
-
-        ret = []
-        for cat_data in Y:
-            discretized = []
-            for y in cat_data:
-                if math.isnan(y): 
-                    discretized.append(None)
-                else:
-                    discretized.append(str(min(set(x for x in bins if x>y))))
-            ret.append(discretized)
-
-        return ret
-        """
-
 
     def generate_vocab_and_word_frequencies(self):
         '''
@@ -323,15 +282,17 @@ class DataHelper():
         return ret  
 
 if __name__ == "__main__": 
-    du =DataHelper(50)
-    train = du.train_data
-    print(train["region_2"])
-    print(train["region_2"].as_matrix())
-    features = ["region_2", "price"]
+    #du =DataHelper(50)
+    pass
+
+    #train = du.train_data
+    #print(train["region_2"])
+    #print(train["region_2"].as_matrix())
+    #features = ["region_2", "price"]
     #print(train["price"].dtype)
-    batch_dict = du.data_dict
+    #batch_dict = du.data_dict
     #print(batch_dict["train"])
-    lh_multi = LabelsHelperMulti(batch_dict, features)
+    #lh_multi = LabelsHelperMulti(batch_dict, features)
     #sub_du, label_help = du.get_filtered_data("price")
     #train_df = sub_du.train_data
     #print(train_df)
@@ -348,10 +309,10 @@ if __name__ == "__main__":
     #batch_dict = {"train" : df, "dev" : df, "test" : df}
     #categories = ['col1', 'col2', 'col3']
     #lh_multi = LabelsHelperMulti(batch_dict, categories)
-    print(lh_multi.num_classes_max)
-    print(lh_multi.labels_list_dict['train'])
-    print(lh_multi.classes_list_dict['train'])
-    print(lh_multi.attribute_mask.shape)
+    #print(lh_multi.num_classes_max)
+    #print(lh_multi.labels_list_dict['train'])
+    #print(lh_multi.classes_list_dict['train'])
+    #print(lh_multi.attribute_mask.shape)
     #freq_dict = du.word_freq_dict
     #print (json.dumps(freq_dict, indent=1))
     #print(len(du.vocab))
