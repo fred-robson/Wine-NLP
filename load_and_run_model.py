@@ -31,6 +31,7 @@ def get_data_for_model(data_helper,label_helper,emb_helper,config):
 
 def main(model_path):
     with open(model_path+"/desc.pkl","rb") as f:
+        print("Loading pkl file")
         desc = pickle.load(f)
     
     y_cat = desc["Y_cat"]
@@ -64,13 +65,12 @@ def main(model_path):
 
 if __name__ == "__main__":
     args = sys.argv
-    model_path = args[1]
 
 
     if len(args) == 1: 
         model_path = "results/lstm/"+sorted(os.listdir("results/lstm"))[-2]
-    
-
+    else:
+        model_path = args[1]
     main(model_path)
     
 
