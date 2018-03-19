@@ -94,6 +94,13 @@ class DataHelper():
             else: loaded_data.append(data_frame[:max_len])
         return loaded_data
 
+    def get_all_data(self,category):
+        #returns the concatenated 
+        all_data = np.array([])
+        for data in [self.train_data,self.dev_data,self.test_data]:
+            all_data = np.append(all_data,data[category])
+        return all_data
+
     def get_Y_cat(self,Y_cat, data_frames = None):
         if data_frames is None:
             return self.train_data[Y_cat],self.dev_data[Y_cat],self.test_data[Y_cat]

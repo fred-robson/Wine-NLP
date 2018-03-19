@@ -400,14 +400,12 @@ class RNNModel(Model):
         - Config
         '''
         with open(self.config.desc_output,"wb+") as f:
-            with open(self.config.desc_txt,"w+") as g:
                 all_info = {}
                 all_info["config"] = {a:getattr(self.config,a) for a in dir(self.config) if not a.startswith('__') and not a=="update_outputs"}
                 all_info["limit"] = self.limit
                 all_info["Y_cat"] = self.Y_cat
                 all_info["test_batch"] = self.test_batch
                 pickle.dump(all_info,f)
-                g.write(str(all_info))
 
     def save_epoch_outputs(self,epoch,loss,result_dev,result_train):
         '''
