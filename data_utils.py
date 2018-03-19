@@ -204,6 +204,8 @@ class DataHelper():
         train_df, dev_df, test_df = self.train_data[new_cats].copy(),   self.dev_data[new_cats].copy(),  self.test_data[new_cats].copy()
         train_df, dev_df, test_df = train_df[~train_df[Y_cat].isin([NON_TOK])], dev_df[~dev_df[Y_cat].isin([NON_TOK])], test_df[~test_df[Y_cat].isin([NON_TOK])]
         data_frames = [train_df, dev_df, test_df]
+        if type(train_df[Y_cat].dtype) is np.float64:
+            data_frames = descritize(data_frames,Y_cat)
         return DataHelper(data = data_frames), self.labels_from_Y_cat(Y_cat, data_frames = data_frames, filter_nan = True)
    
         """
