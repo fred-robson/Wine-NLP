@@ -64,7 +64,7 @@ def main(model_path):
 
 if __name__ == "__main__":
     args = sys.argv
-    model_path = None
+    model_path = args[1]
 
 
     if len(args) == 1: 
