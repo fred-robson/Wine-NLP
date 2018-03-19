@@ -109,7 +109,7 @@ class LabelsHelper():
         self.name = Y_cat
         if Y_cat == "price":
             data = [batch_dict["train"], batch_dict["dev"], batch_dict["test"]]
-            data = descritize(data, Y_cat)
+            data = descritize(data, Y_cat, k=10)
             batch_dict["train"], batch_dict["dev"], batch_dict["test"] = data[0], data[1], data[2]
         self.batch_dict = batch_dict
         self.train_df = batch_dict["train"]

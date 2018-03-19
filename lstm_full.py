@@ -87,10 +87,11 @@ class MultiAttributeRNNModel(RNNModel):
         U = tf.get_variable("OutputWeights", shape = (self.config.hidden_size, self.config.n_classes*self.config.n_attributes), initializer = tf.contrib.layers.xavier_initializer())
         b_2 = tf.get_variable("OutputBias", shape = (self.config.n_classes*self.config.n_attributes), initializer = tf.zeros_initializer())
         
-        rnn_cell = tf.nn.rnn_cell.LSTMCell(self.config.hidden_size, initializer = tf.contrib.layers.xavier_initializer())
+        rnn_layers = [tf.nn.rnn_cell.LSTMCell(size, initializer = tf.contrib.layers.xavier_initializer()) for size in [self.config.hidden_size, self.config.hidden_size]]
+        multi_rnn_cell = tf.nn.rnn_cell.MultiRNNCell(rnn_layers)
         #init_state = rnn_cell.zero_state(self.config.current_batch_size, dtype = tf.float32) 
         #runs the entire rnn - "state" is the final state of the lstm
-        outputs, state = tf.nn.dynamic_rnn(cell=rnn_cell,
+        outputs, state = tf.nn.dynamic_rnn(cell=multi_rnn_cell,
                                            inputs=x, dtype=tf.float32)
         outputs = tf.nn.dropout(outputs, dropout_rate) 
         #outputs_drop = tf.reduce_mean(outputs, axis = 1)

@@ -17,7 +17,7 @@ OUTPUT_PATH = "results/hyper_parameters/"
 FILE_NAME = "hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
 MODEL_NAME = "lstm/"
 POSS_LR = 10**np.random.uniform(-5, 0, 4)
-POSS_EPOCHS = [50]
+POSS_EPOCHS = [80]
 POSS_HIDDEN_SIZE = [50,100,200]
 
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
@@ -116,8 +116,8 @@ def find_best_hyperparamaters(data_helper,emb_helper,label_helper,limit, y_cat=N
 
 
 
-def main(limit, model):
-    emb_helper = emb.embedding_helper(save_to_pickle = False)
+def main(limit, model, num_embed):
+    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch=num_embed )
     data_helper = du.DataHelper(limit)
 
     f = open(OUTPUT_PATH+MODEL_NAME+FILE_NAME,"w+")
@@ -129,6 +129,8 @@ def main(limit, model):
         for y_cat in categories:
 
             sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
+            print(sub_labels_helper.train_labels)
+            print(sub_labels_helper.train_classes)
             print(sub_data_helper.max_length)
             with open(OUTPUT_PATH+MODEL_NAME+FILE_NAME,"a") as f: f.write("\n"+y_cat+"\n")
             print(y_cat)
@@ -147,6 +149,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("model", help="tells us which model to run (i.e. 'single', 'multi')")
     parser.add_argument("--limit",help="sets a limit for the amount of data we want to load" ,type=int, default=None)
+    parser.add_argument("--embed", help="sets a limit for number of embeddings to load", type=int, default=0)
     args = parser.parse_args()
     limit = args.limit
     model = args.model
@@ -158,6 +161,6 @@ if __name__ == "__main__":
     #if len(args)>1 and str.isdigit(args[1]): 
     #    limit = int(args[1])
     #    print("Limit of ",limit)
-    main(limit, model)
+    main(limit, model, args.embed)
 
     
