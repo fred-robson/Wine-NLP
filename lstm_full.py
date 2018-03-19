@@ -181,7 +181,6 @@ class MultiAttributeRNNModel(RNNModel):
             '''
             accuracy = Y_pred==Y_true
             accuracy = np.mean(accuracy, axis = axis)
-            print(accuracy)
             return accuracy
         
         def f1_score(Y_pred, Y_true, average = 'weighted'):
@@ -243,6 +242,31 @@ class MultiAttributeRNNModel(RNNModel):
         predictions = sess.run(self.pred, feed_dict=feed)
         predictions = np.argmax(predictions, axis = 2)
         return predictions
+
+    def report_results(self, sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss):
+        
+        for i,cat in enumerate(self.cat):
+            print("Cat: "+cat+"                    ")
+            print("                                ")
+            print("     | Acc      F1_W      F1_M |")
+            print("     |-------------------------|")
+            print("Train| %.3f    %.3f    %.3f |"%(result_train[0,i],result_train[1,i],result_train[2,i]))
+            print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0,i],result_dev[1,i],result_dev[2,i]))
+            print("     |-------------------------|\n")
+
+            self.save_epoch_outputs(epoch,loss,result_dev[:, i],result_train[:,i])
+        
+        if np.mean(result_dev[self.config.result_index]) > best_dev_result[self.config.result_index]:
+            best_dev_result = np.mean(result_dev, axis=1)
+            train_result_best = np.mean(result_train, axis=1)
+            best_epoch = epoch
+            if saver:
+                print("New best accuracy! Saving model in %s"%self.config.model_output)
+                saver.save(sess, self.config.model_output)
+                self.save_model_description()
+
+        return best_dev_result, train_result_best, best_epoch
+
     
     def __init__(self, helper, config, pretrained_embeddings, attributes_mask, cat=None, test_batch=None, limit=None):
         self.attribute_mask = np.array(attributes_mask)

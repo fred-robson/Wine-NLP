@@ -323,7 +323,7 @@ class RNNModel(Model):
             # Ignore predict
             batch = batch[:1] + batch[2:]
             preds_ = self.predict_on_batch(sess, *batch)
-        preds += list(preds_)
+            preds += list(preds_)
             prog.update(i + 1, [])
         return self.consolidate_predictions(inputs_raw_copy, inputs, preds)
 
@@ -352,6 +352,27 @@ class RNNModel(Model):
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
     
+    def report_results(self, sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss):
+        
+        print("     | Acc      F1_W      F1_M |")
+        print("     |-------------------------|")
+        print("Train| %.3f    %.3f    %.3f |"%(result_train[0],result_train[1],result_train[2]))
+        print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0],result_dev[1],result_dev[2]))
+        print("     |-------------------------|\n")
+
+        if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
+            best_dev_result = result_dev
+            train_result_best = result_train
+            best_epoch = epoch
+            if saver:
+                print("New best accuracy! Saving model in %s"%self.config.model_output)
+                saver.save(sess, self.config.model_output)
+                self.save_model_description()
+
+        self.save_epoch_outputs(epoch,loss,result_dev,result_train)
+        return best_dev_result, train_result_best, best_epoch
+
+
     def fit(self, sess, saver, train_raw, dev_set_raw):
         
         train = self.preprocess_data(train_raw)
@@ -372,25 +393,8 @@ class RNNModel(Model):
             result_train  = self.evaluate(sess, train_raw)
             result_dev = self.evaluate(sess, dev_set_raw)
 
-            #for i, cat in self.data_helper
-
-            print("     | Acc      F1_W      F1_M |")
-            print("     |-------------------------|")
-            print("Train| %.3f    %.3f    %.3f |"%(result_train[0],result_train[1],result_train[2]))
-            print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0],result_dev[1],result_dev[2]))
-            print("     |-------------------------|\n")
-
-            if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
-                best_dev_result = result_dev
-                train_result_best = result_train
-                best_epoch = epoch
-                if saver:
-                    print("New best accuracy! Saving model in %s"%self.config.model_output)
-                    saver.save(sess, self.config.model_output)
-                    self.save_model_description()
-
-            self.save_epoch_outputs(epoch,loss,result_dev,result_train)
-                    
+            best_dev_result, train_result_best, best_epoch = self.report_results(sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss)
+                               
         return best_dev_result,train_result_best, best_epoch
 
     def save_model_description(self):
@@ -410,14 +414,15 @@ class RNNModel(Model):
                 all_info["test_batch"] = self.test_batch
                 pickle.dump(all_info,f)
 
-    def save_epoch_outputs(self,epoch,loss,result_dev,result_train):
+    def save_epoch_outputs(self,epoch,loss,result_dev,result_train, Y_cat = None):
         '''
         Saves each epoch's output to the csv. Note that opens and closes CSV every time, so can track what is happening
         even with screen 
         '''
+        if Y_cat == None: Y_cat = self.cat
         if epoch == 0:
             with open(self.config.epochs_csv,"w+") as f:
-                f.write("Y_cat,"+self.Y_cat+"\n")
+                f.write("Y_cat,"+Y_cat+"\n")
                 f.write("Limit,"+str(self.limit)+"\n")
                 f.write("LR,"+str(self.config.lr)+"\n")
                 f.write("HS,"+str(self.config.hidden_size)+"\n")
