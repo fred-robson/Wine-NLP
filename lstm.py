@@ -372,6 +372,8 @@ class RNNModel(Model):
             result_train  = self.evaluate(sess, train_raw)
             result_dev = self.evaluate(sess, dev_set_raw)
 
+            #for i, cat in self.data_helper
+
             print("     | Acc      F1_W      F1_M |")
             print("     |-------------------------|")
             print("Train| %.3f    %.3f    %.3f |"%(result_train[0],result_train[1],result_train[2]))
