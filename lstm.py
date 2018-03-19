@@ -26,7 +26,7 @@ class Config:
     instantiation.
     """
     n_features = 1 # Number of features for every word in the input.
-    max_length = 120 # longest sequence to parse
+    max_length = 160 # longest sequence to parse
     n_classes = 5
     n_attributes = 1
     dropout = 0.5
@@ -34,17 +34,17 @@ class Config:
     hidden_size = 100
     batch_size = 32
     current_batch_size = batch_size
-    n_epochs = 3
+    n_epochs = 30
     max_grad_norm = 10.
     lr = 0.01
 
-    def __init__(self, cell, n_classes = 0, many2one = False,result_index=0,output_path=None):
+    def __init__(self, model, cell, n_classes = 0,result_index=0,output_path=None):
         '''
         @args:
             - result_index = {Accuracy: 0, F1_W:1, F1_M:2}
         '''
+        self.model = model
         self.cell = cell
-        self.many2one = many2one
         if n_classes:
             self.n_classes = n_classes
         self.update_outputs(output_path)
@@ -58,7 +58,7 @@ class Config:
         Updates the output path based on changes to the Config_File
         '''
         if output_path == None:
-            self.output_path = "results/{}/{:%Y%m%d_%H%M%S}/".format(self.cell, datetime.now())
+            self.output_path = "results/{}/{}/{:%Y%m%d_%H%M%S}/".format(self.model,self.cell, datetime.now())
         else: 
             self.output_path = output_path
         self.model_output = self.output_path + "model.weights"
@@ -158,21 +158,22 @@ class RNNModel(Model):
         U = tf.get_variable("OutputWeights", shape = (self.config.hidden_size, self.config.n_classes), initializer = tf.contrib.layers.xavier_initializer())
         b_2 = tf.get_variable("OutputBias", shape = (self.config.n_classes), initializer = tf.zeros_initializer())
         
-        rnn_cell = tf.nn.rnn_cell.LSTMCell(self.config.hidden_size, initializer = tf.contrib.layers.xavier_initializer())
+        rnn_layers = [tf.nn.rnn_cell.LSTMCell(size, initializer = tf.contrib.layers.xavier_initializer()) for size in [self.config.hidden_size, self.config.hidden_size]]
         #init_state = rnn_cell.zero_state(self.config.current_batch_size, dtype = tf.float32) 
         #runs the entire rnn - "state" is the final state of the lstm
-        outputs, state = tf.nn.dynamic_rnn(cell=rnn_cell,
+        multi_rnn_cell = tf.nn.rnn_cell.MultiRNNCell(rnn_layers) 
+        outputs, state = tf.nn.dynamic_rnn(cell=multi_rnn_cell,
                                            inputs=x, dtype=tf.float32)
         outputs = tf.nn.dropout(outputs, dropout_rate) 
         #outputs_drop = tf.reduce_mean(outputs, axis = 1)
-        if self.config.many2one:
+        if self.many2one:
             mask = tf.cast(self.mask_placeholder, dtype = tf.float32)
             outputs_copy = tf.multiply(outputs, tf.expand_dims(mask, 2)) 
             outputs = tf.reduce_mean(outputs_copy, axis = 1)
         else:
             outputs = tf.reshape(outputs, [-1, self.config.hidden_size])    
         preds = tf.add(tf.matmul(outputs, U), b_2)
-        if not self.config.many2one:
+        if not self.many2one:
             preds = tf.reshape(preds, [-1, self.config.max_length, self.config.n_classes]) 
         return preds
 
@@ -185,7 +186,7 @@ class RNNModel(Model):
             loss: A 0-d tensor (scalar)
         """
         labels = self.labels_placeholder
-        if self.config.many2one:
+        if self.many2one:
             #labels = tf.Print(labels, [labels], message = "True: ", summarize = self.config.max_length) 
             #labels = tf.Print(labels, [tf.shape(labels)], message = "Shape: ")
             labels = tf.gather(labels, 0,  axis = 1) 
@@ -262,7 +263,7 @@ class RNNModel(Model):
             _, _, mask = examples[i]
             labels_ = None
             labels_gt = labels[:]
-            if self.config.many2one:
+            if self.many2one:
                 labels_ = [preds[i]]
                 labels_gt = [labels[0]]
             else:
@@ -338,7 +339,7 @@ class RNNModel(Model):
         '''
         feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
         axis = 2
-        if self.config.many2one:
+        if self.many2one:
             axis = 1
         predictions = sess.run(self.pred, feed_dict=feed)
         predictions = np.argmax(predictions, axis = axis)
@@ -347,11 +348,32 @@ class RNNModel(Model):
     def train_on_batch(self, sess,  inputs_batch, labels_batch, mask_batch):
         self.config.current_batch_size = inputs_batch.shape[0]
         feed = self.create_feed_dict(inputs_batch, labels_batch=labels_batch, mask_batch=mask_batch,
-                                     dropout=Config.dropout)
+                                     dropout=self.config.dropout)
         #summary, _, loss = sess.run([merged_summaries, self.train_op, self.loss], feed_dict=feed)
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
     
+    def report_results(self, sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss):
+        
+        print("     | Acc      F1_W      F1_M |")
+        print("     |-------------------------|")
+        print("Train| %.3f    %.3f    %.3f |"%(result_train[0],result_train[1],result_train[2]))
+        print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0],result_dev[1],result_dev[2]))
+        print("     |-------------------------|\n")
+
+        if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
+            best_dev_result = result_dev
+            train_result_best = result_train
+            best_epoch = epoch
+            if saver:
+                print("New best accuracy! Saving model in %s"%self.config.model_output)
+                saver.save(sess, self.config.model_output)
+                self.save_model_description()
+
+        self.save_epoch_outputs(epoch,loss,result_dev,result_train)
+        return best_dev_result, train_result_best, best_epoch
+
+
     def fit(self, sess, saver, train_raw, dev_set_raw):
         
         train = self.preprocess_data(train_raw)
@@ -372,23 +394,8 @@ class RNNModel(Model):
             result_train  = self.evaluate(sess, train_raw)
             result_dev = self.evaluate(sess, dev_set_raw)
 
-            print("     | Acc      F1_W      F1_M |")
-            print("     |-------------------------|")
-            print("Train| %.3f    %.3f    %.3f |"%(result_train[0],result_train[1],result_train[2]))
-            print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0],result_dev[1],result_dev[2]))
-            print("     |-------------------------|\n")
-
-            if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
-                best_dev_result = result_dev
-                train_result_best = result_train
-                best_epoch = epoch
-                if saver:
-                    print("New best accuracy! Saving model in %s"%self.config.model_output)
-                    saver.save(sess, self.config.model_output)
-                    self.save_model_description()
-
-            self.save_epoch_outputs(epoch,loss,result_dev,result_train)
-                    
+            best_dev_result, train_result_best, best_epoch = self.report_results(sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss)
+                               
         return best_dev_result,train_result_best, best_epoch
 
     def save_model_description(self):
@@ -403,18 +410,19 @@ class RNNModel(Model):
                 all_info = {}
                 all_info["config"] = {a:getattr(self.config,a) for a in dir(self.config) if not a.startswith('__') and not a=="update_outputs"}
                 all_info["limit"] = self.limit
-                all_info["Y_cat"] = self.Y_cat
+                all_info["Y_cat"] = self.cat
                 all_info["test_batch"] = self.test_batch
                 pickle.dump(all_info,f)
 
-    def save_epoch_outputs(self,epoch,loss,result_dev,result_train):
+    def save_epoch_outputs(self,epoch,loss,result_dev,result_train, Y_cat = None):
         '''
         Saves each epoch's output to the csv. Note that opens and closes CSV every time, so can track what is happening
         even with screen 
         '''
-        if epoch == 0:
+        if Y_cat == None: Y_cat = self.cat
+        if not os.path.exists(self.config.epochs_csv):
             with open(self.config.epochs_csv,"w+") as f:
-                f.write("Y_cat,"+self.Y_cat+"\n")
+                f.write("Y_cat,"+Y_cat+"\n")
                 f.write("Limit,"+str(self.limit)+"\n")
                 f.write("LR,"+str(self.config.lr)+"\n")
                 f.write("HS,"+str(self.config.hidden_size)+"\n")
@@ -430,15 +438,16 @@ class RNNModel(Model):
 
 
         
-    def __init__(self, helper, config, pretrained_embeddings,Y_cat=None,test_batch=None,limit=None):
+    def __init__(self, helper, config, pretrained_embeddings,cat=None,test_batch=None,limit=None, many2one=False):
         self.data_helper = helper
         self.config = config
-        self.max_length = min(Config.max_length, helper.max_length)
-        Config.max_length = self.max_length
+        self.max_length = min(self.config.max_length, self.data_helper.max_length)
+        self.config.max_length = self.max_length
         self.pretrained_embeddings = pretrained_embeddings
-        self.Y_cat = Y_cat
+        self.cat = cat
         self.test_batch = test_batch
         self.limit = limit
+        self.many2one = many2one
         # Defining placeholders.
         self.input_placeholder = None
         self.labels_placeholder = None
