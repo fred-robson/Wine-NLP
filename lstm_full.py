@@ -105,22 +105,15 @@ class MultiAttributeRNNModel(RNNModel):
     def add_loss_op(self, preds):
         """Adds Ops for the loss function to the computational graph.
         Args:
-            pred: A tensor of shape (batch_size, max_length, n_classes) containing the output of the neural
+            pred: A tensor of shape (batch_size, n_attributes, n_classes) containing the output of the neural
                   network before the softmax layer.
         Returns:
             loss: A 0-d tensor (scalar)
         """
         labels = self.labels_placeholder
         attribute_mask = self.attribute_mask
-        #labels = tf.Print(labels, [labels], message = "True: ", summarize = self.config.max_length) 
-        #labels = tf.Print(labels, [tf.shape(labels)], message = "Shape: ")
-        labels = tf.Print(labels, [labels], message = "Pre-Loss: ")
         labels = tf.squeeze(labels) 
-        labels = tf.Print(labels, [labels], message = "Pre-Loss: ")
-        #labels = tf.cast(labels, dtype = tf.int32)   
-        #preds = tf.Print(preds, [tf.argmax(tf.nn.softmax(preds), axis = 1)], message = "Pred: ", summarize = self.config.current_batch_size)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = labels, logits = preds)
-        labels = tf.Print(labels, [labels], message = "True(reduced): ")
         labels = tf.cast(labels, dtype=tf.bool)
         labels = tf.cast(labels, dtype=tf.float32)
         loss = tf.multiply(loss, labels)
@@ -172,7 +165,7 @@ class MultiAttributeRNNModel(RNNModel):
         examples: A list of vectorized input/output pairs.
         examples_raw: A list of the original input/output sequence pairs.
         Returns:
-        The one to one accuracy for predicting tokens as named entities.
+        The 1-to-1 accuracy for predicting attributes, F_1 (weighted), F_1 (macro)
         """
         #token_cm = ConfusionMatrix(labels=LBLS)
         def accuracy_score(Y_pred, Y_true, axis = 0):
@@ -186,23 +179,20 @@ class MultiAttributeRNNModel(RNNModel):
         def f1_score(Y_pred, Y_true, average = 'weighted'):
             f1_scores = np.array([])
             for col_pred, col_true in zip(Y_pred.T, Y_true.T):
-                np.append(f1_scores, sklearn.metrics.f1_score(col_pred, col_true, average=average))
+                f1_scores =  np.append(f1_scores, sklearn.metrics.f1_score(col_pred, col_true, average=average))    
             return f1_scores
 
         def test_accuracy(Y_pred,Y_true):
-            acc = accuracy_score(Y_pred, Y_true)          
+            acc_cat = accuracy_score(Y_pred, Y_true)
+            acc_batch = np.mean(acc_cat)
             f1_w  = f1_score(Y_pred,Y_true,average="weighted")  
             f1_m = f1_score(Y_pred,Y_true,average="macro")  
-            return acc,f1_w,f1_m
+            return acc_batch,acc_cat,f1_w,f1_m
 
         acc_array = []
         sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
-        print("labels: ",class_labels)
-        print("preds: ", predictions)
         labels_np = np.array(class_labels)
         predictions_np = np.array(predictions)
-        print("labels_np :", labels_np)
-        print("preds_np: ", predictions_np)
         return test_accuracy(predictions_np,labels_np)
 
         '''
@@ -244,21 +234,22 @@ class MultiAttributeRNNModel(RNNModel):
         return predictions
 
     def report_results(self, sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss):
-        
         for i,cat in enumerate(self.cat):
-            print("Cat: "+cat+"                    ")
+            results_train_tup = (result_train[0],result_train[1][i],result_train[2][i], result_train[3][i])
+            results_dev_tup = (result_dev[0],result_dev[1][i],result_dev[2][i], result_dev[3][i])
+            print(""+cat+"                         ")
             print("                                ")
-            print("     | Acc      F1_W      F1_M |")
-            print("     |-------------------------|")
-            print("Train| %.3f    %.3f    %.3f |"%(result_train[0,i],result_train[1,i],result_train[2,i]))
-            print(" Dev | %.3f    %.3f    %.3f |"%(result_dev[0,i],result_dev[1,i],result_dev[2,i]))
-            print("     |-------------------------|\n")
+            print("     | Acc_Total     Acc_Cat      F1_W      F1_M |")
+            print("     |-------------------------------------------|")
+            print("Train| %.3f          %.3f         %.3f      %.3f |"% results_train_tup)
+            print(" Dev | %.3f          %.3f         %.3f      %.3f |"% results_dev_tup)
+            print("     |-------------------------------------------|\n")
 
-            self.save_epoch_outputs(epoch,loss,result_dev[:, i],result_train[:,i])
+            self.save_epoch_outputs(epoch,loss,results_dev_tup,results_train_tup, Y_cat = cat)
         
-        if np.mean(result_dev[self.config.result_index]) > best_dev_result[self.config.result_index]:
-            best_dev_result = np.mean(result_dev, axis=1)
-            train_result_best = np.mean(result_train, axis=1)
+        if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
+            best_dev_result = np.mean(result_dev[1:], axis=1)
+            train_result_best = np.mean(result_train[1:], axis=1)
             best_epoch = epoch
             if saver:
                 print("New best accuracy! Saving model in %s"%self.config.model_output)
@@ -267,7 +258,25 @@ class MultiAttributeRNNModel(RNNModel):
 
         return best_dev_result, train_result_best, best_epoch
 
-    
+    def save_epoch_outputs(self,epoch,loss,result_dev,result_train, Y_cat):
+        '''
+        Saves each epoch's output to the csv. Note that opens and closes CSV every time, so can track what is happening
+        even with screen 
+        '''
+        if not os.path.exists(self.config.epochs_csv):
+            with open(self.config.epochs_csv,"w+") as f:
+                f.write("Limit,"+str(self.limit)+"\n")
+                f.write("LR,"+str(self.config.lr)+"\n")
+                f.write("HS,"+str(self.config.hidden_size)+"\n")
+                f.write("Loss,dev_ACC_Total,dev_ACC_Cat,dev_F1_W,dev_F1_M,train_ACC_Total,train_ACC_Cat,train_F1_W,train_F1_M,Y_cat,epoch\n")
+
+        with open(self.config.epochs_csv,"a") as f:
+            f.write(str(loss)+",")
+            for r in result_dev:f.write(str(r)+",") 
+            for r in result_train:f.write(str(r)+",")
+            f.write(Y_cat+",")
+            f.write(str(epoch)+"\n")
+
     def __init__(self, helper, config, pretrained_embeddings, attributes_mask, cat=None, test_batch=None, limit=None):
         self.attribute_mask = np.array(attributes_mask)
         config.n_attributes = self.attribute_mask.shape[0]

@@ -420,7 +420,7 @@ class RNNModel(Model):
         even with screen 
         '''
         if Y_cat == None: Y_cat = self.cat
-        if epoch == 0:
+        if not os.path.exists(self.config.epochs_csv):
             with open(self.config.epochs_csv,"w+") as f:
                 f.write("Y_cat,"+Y_cat+"\n")
                 f.write("Limit,"+str(self.limit)+"\n")

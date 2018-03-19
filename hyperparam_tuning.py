@@ -42,7 +42,6 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
 
     #Final data_set_up 
     train_raw = [X_train_indices, label_helper.train_classes]
-    print(train_raw)
     dev_raw = [X_dev_indices, label_helper.dev_classes]
 
 
@@ -118,7 +117,7 @@ def find_best_hyperparamaters(data_helper,emb_helper,label_helper,limit, y_cat=N
 
 
 def main(limit, model):
-    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = 1000)
+    emb_helper = emb.embedding_helper(save_to_pickle = False)
     data_helper = du.DataHelper(limit)
 
     f = open(OUTPUT_PATH+MODEL_NAME+FILE_NAME,"w+")
