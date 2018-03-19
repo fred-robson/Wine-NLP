@@ -42,7 +42,7 @@ def main(model_path):
     emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = test_batch_size)
     sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
 
-    config = Config("lstm", n_classes = sub_labels_helper.num_classes, many2one = True,result_index = RESULT_INDEX,output_path=output_path)
+    config = Config(RNNModel,"lstm", n_classes = sub_labels_helper.num_classes,result_index = RESULT_INDEX,output_path=output_path)
 
     for attribute, value in desc['config'].items(): setattr(config,attribute,value)
     
