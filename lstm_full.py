@@ -16,54 +16,10 @@ from model import Model
 from util import minibatches
 import os
 import sklearn.metrics
-from lstm import RNNModel
-
-class Config:
-    """Holds model hyperparams and data information.
-
-    The config class is used to store various hyperparameters and dataset
-    information parameters. Model objects are passed a Config() object at
-    instantiation.
-    """
-    n_features = 1 # Number of features for every word in the input.
-    max_length = 160 # longest sequence to parse
-    n_classes = 5 # this is the max class size (i.e. number of classes for attribute with the most classes)
-    n_attributes = 5 
-    dropout = 0.5
-    embed_size = 50
-    hidden_size = 100
-    batch_size = 32
-    current_batch_size = batch_size
-    n_epochs = 3
-    max_grad_norm = 10.
-    lr = 0.01
-
-    def __init__(self, cell, n_classes = 0, many2one = False,result_index=0):
-        '''
-        @args:
-            - result_index = {Accuracy: 0, F1_W:1, F1_M:2}
-        '''
-        self.cell = cell
-        self.many2one = many2one
-        if n_classes:
-            self.n_classes = n_classes
-        self.update_outputs()
-        self.conll_output = self.output_path + "{}_predictions.conll".format(self.cell)
-        self.result_index = result_index
-        if not os.path.exists(self.output_path):
-            os.makedirs(self.output_path)
-
-    def update_outputs(self):
-        '''
-        Updates the output path based on changes to the Config_File
-        '''
-        self.output_path = "results/{}/{:%Y%m%d_%H%M%S}_epochs={}_lr={:.8f}_hs={}/".format(self.cell, datetime.now(),Config.n_epochs,Config.lr,Config.hidden_size)
-        self.model_output = self.output_path + "model.weights"
-        self.eval_output = self.output_path + "results.txt"
-        self.summaries_path = self.output_path + "summaries/"
+from lstm import RNNModel, Config
 
 
-def pad_sequences(data, max_length, many2one = False):
+def pad_sentences(data, max_length):
     """Ensures each input-output seqeunce pair in @data is of length
     @max_length by padding it with zeros and truncating the rest of the
     sequence.
@@ -84,19 +40,16 @@ def pad_sequences(data, max_length, many2one = False):
 
     # Use this zero vector when padding sequences.
     zero_vector = [0] * Config.n_features
-    zero_label = 0
 
     for sentence, labels in data:
         ### YOUR CODE HERE (~4-6 lines)
-        labels_copy = labels[:]
         sentence_copy = sentence[:]
         sentence_length = len(sentence_copy)
         diff = max_length - sentence_length
         if diff >  0:
             sentence_copy += [zero_vector]*diff
-            labels_copy += [zero_label]*diff
         mask = [(i < sentence_length) for i,_ in enumerate(sentence_copy)]
-        ret.append((sentence_copy[:max_length], labels_copy[:max_length] , mask[:max_length]))
+        ret.append((sentence_copy[:max_length], labels , mask[:max_length]))
         ### END YOUR CODE ###
     return ret
 
@@ -112,12 +65,15 @@ class MultiAttributeRNNModel(RNNModel):
         """Generates placeholder variables to represent the input tensors.
         """
         self.input_placeholder = tf.placeholder(tf.int32, shape = (None, self.max_length, self.config.n_features))
-        self.labels_placeholder = tf.placeholder(tf.int32, shape = (None, self.n_attributes, 1))
+        self.labels_placeholder = tf.placeholder(tf.int32, shape = (None, self.config.n_attributes, 1))
         self.mask_placeholder = tf.placeholder(tf.bool, shape = (None, self.max_length))
         self.dropout_placeholder = tf.placeholder(tf.float32, shape = ())
 
     def add_attribute_mask(self):
-        self.attribute_mask = tf.constant(self.attribute_mask)
+        attribute_mask = tf.constant(self.attribute_mask)
+        #self.attribute_mask = tf.Print(self.attribute_mask, [self.attribute_mask])
+        attribute_mask = tf.cast(attribute_mask, tf.float32)
+        return attribute_mask
         
     def add_prediction_op(self):
         """Adds the unrolled RNN.
@@ -126,7 +82,7 @@ class MultiAttributeRNNModel(RNNModel):
         """
         x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
-        attribute_mask = self.attribute_mask
+        attribute_mask = self.add_attribute_mask()
         #with tf.variable_scope("RNN", reuse = tf.AUTO_REUSE):        
         U = tf.get_variable("OutputWeights", shape = (self.config.hidden_size, self.config.n_classes*self.config.n_attributes), initializer = tf.contrib.layers.xavier_initializer())
         b_2 = tf.get_variable("OutputBias", shape = (self.config.n_classes*self.config.n_attributes), initializer = tf.zeros_initializer())
@@ -158,12 +114,16 @@ class MultiAttributeRNNModel(RNNModel):
         attribute_mask = self.attribute_mask
         #labels = tf.Print(labels, [labels], message = "True: ", summarize = self.config.max_length) 
         #labels = tf.Print(labels, [tf.shape(labels)], message = "Shape: ")
+        labels = tf.Print(labels, [labels], message = "Pre-Loss: ")
         labels = tf.squeeze(labels) 
-        #labels = tf.Print(labels, [labels], message = "True(reduced): ", summarize = self.config.current_batch_size)
+        labels = tf.Print(labels, [labels], message = "Pre-Loss: ")
         #labels = tf.cast(labels, dtype = tf.int32)   
         #preds = tf.Print(preds, [tf.argmax(tf.nn.softmax(preds), axis = 1)], message = "Pred: ", summarize = self.config.current_batch_size)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = labels, logits = preds)
-        loss = tf.boolean_mask(loss, tf.cast(labels, dtype = tf.bool))
+        labels = tf.Print(labels, [labels], message = "True(reduced): ")
+        labels = tf.cast(labels, dtype=tf.bool)
+        labels = tf.cast(labels, dtype=tf.float32)
+        loss = tf.multiply(loss, labels)
         loss = tf.reduce_mean(loss)
         return loss
 
@@ -176,7 +136,7 @@ class MultiAttributeRNNModel(RNNModel):
         data_copy = data
         data_copy = self.data_helper.data_as_list_of_tuples(data_copy)
         if pad:
-            data_copy = pad_sequences(data_copy, self.config.max_length)
+            data_copy = pad_sentences(data_copy, self.config.max_length)
         return data_copy
 
     def featurize_data(self, data):
@@ -192,9 +152,12 @@ class MultiAttributeRNNModel(RNNModel):
 
         ret = []
         for i, (sentence, labels) in enumerate(examples_raw):
-            labels_ = preds[i]
-            assert len(labels_) == len(labels)
-            ret.append([sentence, labels, labels_])
+            preds_ = preds[i]
+            #preds_ = np.expand_dims(preds[i], axis = 2)
+            labels_ = copy.deepcopy(np.squeeze(labels))
+            #labels_ = labels[:]
+            assert len(preds_) == len(labels_)
+            ret.append([sentence, labels_, preds_])
         #print("Predictions (sent, true, pred): ", ret)
         return ret
     
@@ -212,16 +175,35 @@ class MultiAttributeRNNModel(RNNModel):
         The one to one accuracy for predicting tokens as named entities.
         """
         #token_cm = ConfusionMatrix(labels=LBLS)
+        def accuracy_score(Y_pred, Y_true, axis = 0):
+            '''
+            returns: array of accuracy scores of size n_attributes or batch_sze depending on axis
+            '''
+            accuracy = Y_pred==Y_true
+            accuracy = np.mean(accuracy, axis = axis)
+            print(accuracy)
+            return accuracy
+        
+        def f1_score(Y_pred, Y_true, average = 'weighted'):
+            f1_scores = np.array([])
+            for col_pred, col_true in zip(Y_pred.T, Y_true.T):
+                np.append(f1_scores, sklearn.metrics.f1_score(col_pred, col_true, average=average))
+            return f1_scores
+
         def test_accuracy(Y_pred,Y_true):
-            acc = sklearn.metrics.accuracy_score(Y_pred,Y_true)
-            f1_w  = sklearn.metrics.f1_score(Y_pred,Y_true,average="weighted")  
-            f1_m = sklearn.metrics.f1_score(Y_pred,Y_true,average="macro")  
+            acc = accuracy_score(Y_pred, Y_true)          
+            f1_w  = f1_score(Y_pred,Y_true,average="weighted")  
+            f1_m = f1_score(Y_pred,Y_true,average="macro")  
             return acc,f1_w,f1_m
 
         acc_array = []
         sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
+        print("labels: ",class_labels)
+        print("preds: ", predictions)
         labels_np = np.array(class_labels)
         predictions_np = np.array(predictions)
+        print("labels_np :", labels_np)
+        print("preds_np: ", predictions_np)
         return test_accuracy(predictions_np,labels_np)
 
         '''
@@ -257,13 +239,12 @@ class MultiAttributeRNNModel(RNNModel):
         '''
         predicts labels
         '''
-        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
-        axis = 2 
+        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch) 
         predictions = sess.run(self.pred, feed_dict=feed)
-        predictions = np.argmax(predictions, axis = axis)
+        predictions = np.argmax(predictions, axis = 2)
         return predictions
     
-    def __init__(self, helper, config, pretrained_embeddings, attributes_mask):
-        self.attributes_mask = np.array(attributes_mask)
-        config.n_attributes = self.attributes_mask.shape[0]
-        super(MultiAttributeRNNModel, self).__init__(helper, config, pretrained_embeddings)
+    def __init__(self, helper, config, pretrained_embeddings, attributes_mask, cat=None, test_batch=None, limit=None):
+        self.attribute_mask = np.array(attributes_mask)
+        config.n_attributes = self.attribute_mask.shape[0]
+        super(MultiAttributeRNNModel, self).__init__(helper, config, pretrained_embeddings, cat, test_batch, limit)
