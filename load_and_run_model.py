@@ -30,7 +30,7 @@ def get_data_for_model(data_helper,label_helper,emb_helper,config):
 
 
 def main(model_path):
-    with open("results/lstm/"+model_path+"/desc.pkl","rb") as f:
+    with open(model_path+"/desc.pkl","rb") as f:
         desc = pickle.load(f)
     
     y_cat = desc["Y_cat"]
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
 
     if len(args) == 1: 
-        model_path = sorted(os.listdir("results/lstm"))[-2]
+        model_path = "results/lstm/"+sorted(os.listdir("results/lstm"))[-2]
     
 
     main(model_path)
