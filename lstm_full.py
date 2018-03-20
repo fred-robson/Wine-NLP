@@ -234,10 +234,11 @@ class MultiAttributeRNNModel(RNNModel):
         predictions = np.argmax(predictions, axis = 2)
         return predictions
 
-    def report_results(self, sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss):
+    def report_results(self, sess, saver, result_train, result_dev, result_test,best_dev_result, train_result_best, best_epoch, epoch, loss):
         for i,cat in enumerate(self.cat):
             results_train_tup = (result_train[0],result_train[1][i],result_train[2][i], result_train[3][i])
             results_dev_tup = (result_dev[0],result_dev[1][i],result_dev[2][i], result_dev[3][i])
+            results_test_tup = (result_test[0],result_test[1][i],result_test[2][i], result_test[3][i])
             print(""+cat+"                         ")
             print("                                ")
             print("     | Acc_Total     Acc_Cat      F1_W      F1_M |")
@@ -246,7 +247,7 @@ class MultiAttributeRNNModel(RNNModel):
             print(" Dev | %.3f          %.3f         %.3f      %.3f |"% results_dev_tup)
             print("     |-------------------------------------------|\n")
 
-            self.save_epoch_outputs(epoch,loss,results_dev_tup,results_train_tup, Y_cat = cat)
+            self.save_epoch_outputs(epoch,loss,results_dev_tup,results_train_tup,results_test_tup, Y_cat = cat)
         
         if result_dev[self.config.result_index] > best_dev_result[self.config.result_index]:
             best_dev_result = np.mean(result_dev[1:], axis=1)
@@ -259,7 +260,7 @@ class MultiAttributeRNNModel(RNNModel):
 
         return best_dev_result, train_result_best, best_epoch
 
-    def save_epoch_outputs(self,epoch,loss,result_dev,result_train, Y_cat):
+    def save_epoch_outputs(self,epoch,loss,result_dev,result_train,result_test, Y_cat):
         '''
         Saves each epoch's output to the csv. Note that opens and closes CSV every time, so can track what is happening
         even with screen 
@@ -275,6 +276,7 @@ class MultiAttributeRNNModel(RNNModel):
             f.write(str(loss)+",")
             for r in result_dev:f.write(str(r)+",") 
             for r in result_train:f.write(str(r)+",")
+            for r in result_test: f.write(str(r)+",")
             f.write(Y_cat+",")
             f.write(str(epoch)+"\n")
 

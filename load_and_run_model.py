@@ -66,23 +66,25 @@ def main(model_path):
     emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch = test_batch_size)
     sub_data_helper, sub_labels_helper = data_helper.get_filtered_data(y_cat)
 
-    config = Config(RNNModel,"lstm_2_layer", n_classes = sub_labels_helper.num_classes,result_index = RESULT_INDEX,output_path=output_path)
+    with tf.Graph().as_default():
 
-    for attribute, value in desc['config'].items(): setattr(config,attribute,value)
+        config = Config(RNNModel,"lstm_2_layer", n_classes = sub_labels_helper.num_classes,result_index = RESULT_INDEX,output_path=output_path)
+
+        for attribute, value in desc['config'].items(): 
+            setattr(config,attribute,value)
+
     
-    
-    start = time.time()
-    print("Building model....")
-    test_raw, embeddings = get_data_for_model(sub_data_helper,sub_labels_helper,emb_helper,config,DATA_TYPE)
-    model = RNNModel(data_helper,config,embeddings,many2one=True)
-    print("took %.2f seconds"%(time.time() - start))
-    init = tf.global_variables_initializer()
-    saver = tf.train.Saver()
-    with tf.Session() as session:
-        session.run(init)
-        saver.restore(session,model.config.model_output)
-        results = model.evaluate(session,test_raw)
-        print(results)
+        start = time.time()
+        print("Building model....")
+        test_raw, embeddings = get_data_for_model(sub_data_helper,sub_labels_helper,emb_helper,config,DATA_TYPE)
+        model = RNNModel(data_helper, config, embeddings,y_cat,emb_helper.test_batch,limit,many2one=True)
+        print(model.config.model_output)
+        print("took %.2f seconds"%(time.time() - start))
+        saver = tf.train.Saver()
+        with tf.Session() as session:
+            saver.restore(session,model.config.model_output)
+            results = model.evaluate(session,test_raw)
+            print(results)
 
 
 
