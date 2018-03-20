@@ -1,7 +1,7 @@
 '''
 File for accessing and manipulating the embeddings
 '''
-
+from defs import START_TOK, END_TOK
 import pandas as pd
 import numpy as np
 from collections import Counter,defaultdict
@@ -15,14 +15,19 @@ glove_embeddings_file_uncased = "/embeddings/glove.42B.300d.txt"
 
 class embedding_helper():
 
-    def __init__(self, save_to_pickle = False, from_pickle = False, vocab = None, embedding_type = "GLOVE_UNCASED", test_batch = 0):
+    def __init__(self, save_to_pickle = False, from_pickle = False, vocab = None, embedding_type = "GLOVE_UNCASED", test_batch = 0, language_model = False):
         '''
         instantiates an embedding helper 
         '''
         self.embedding_dict, self.embedding_matrix, self.embedding_tokens_2_ind, self.ind_2_embedding_tokens  =  None, None, None, None
         self.unk_indice = 0
         self.unknown_token = "<unk>"
+        self.end_token = END_TOK
+        self.start_token = START_TOK
+        self.language_model = language_model
         self.test_batch = test_batch
+        self.end_ind = None
+        self.start_ind = None
         if from_pickle:
             self.embedding_dict, self.embedding_matrix, self.embedding_tokens_2_ind, self.ind_2_embedding_tokens = self.load_from_pickle(vocab, embedding_type)
         else:
@@ -81,6 +86,19 @@ class embedding_helper():
         embedding_matrix.append(unk_weights)
         embedding_tokens_2_ind[self.unknown_token] = self.unk_indice
         ind_2_embedding_tokens[self.unk_indice] = self.unknown_token 
+        if self.language_model:
+            weights = np.zeros_like(embedding_matrix[0])
+            self.start_ind = len(embedding_matrix)
+            embedding_matrix.append(weights)
+            self.end_ind = len(embedding_matrix)
+            embedding_matrix.append(weights)
+            embeddings_dict[self.start_token] = weights
+            embeddings_dict[self.end_token] = weights
+            embedding_tokens_2_ind[self.start_token] = self.start_ind
+            embedding_tokens_2_ind[self.end_token] = self.end_ind
+            ind_2_embedding_tokens[self.start_ind] = self.start_token
+            ind_2_embedding_tokens[self.end_ind] = self.end_token
+
         print ("Done.",len(embedding_matrix)," words loaded!")
         return embeddings_dict, embedding_matrix, embedding_tokens_2_ind, ind_2_embedding_tokens
 
@@ -140,6 +158,7 @@ class embedding_helper():
         sub_ind = 0
         for tok in tqdm(sorted(list(vocab))):
             ind = self.embedding_tokens_2_ind.get(tok.lower(), self.unk_indice)
+            if tok is START_TOK: print("YEEEEEEEEEEEEEEEEE", self.unk_indice)
             if ind != self.unk_indice:
                 sub_embedding_matrix.append(self.embedding_matrix[ind])
                 sub_embedding_tokens_2_ind[tok] = sub_ind
@@ -182,7 +201,11 @@ class embedding_helper():
 
 
 if __name__ == "__main__":
-    eu = embedding_helper(test_batch = 100)
-    print(eu.get_tokens_as_embedding_indices([".", ","]))
-    _, t2i, unk_ind = eu.get_sub_embeddings([".", ","])
-    print(eu.get_tokens_as_embedding_indices([".", ","],tok_2_ind = t2i, unk_indice = unk_ind))
+    eu = embedding_helper(test_batch = 50, language_model = True)
+    print(eu.embedding_matrix)
+    print(eu.tok2ind_ind2tok([[".", ",", START_TOK, END_TOK]]))
+    print(eu.embedding_tokens_2_ind["."])
+    print(eu.embedding_dict["."])
+    matrix, t2i, ind_2_tok, unk_ind = eu.get_sub_embeddings([".", ",", START_TOK, END_TOK])
+    print(matrix)
+    print(eu.get_tokens_as_embedding_indices([".", ",", START_TOK, END_TOK],lookup_dict = t2i, unk_indice = unk_ind))

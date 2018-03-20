@@ -237,13 +237,16 @@ class RNNModel(Model):
         """
         ret = []
         for sentence, labels in data:
-            assert len(labels) == self.config.n_attributes, ("Invalid number of labels for given sentence")
-
-            labels_copy = copy.deepcopy(labels)
             sentence_length = len(sentence)
-            diff = sentence_length - len(labels_copy)
-            if diff > 0:
-                labels_copy += labels_copy*diff
+            labels_copy = copy.deepcopy(labels)
+            if sentence_length != len(labels_copy):
+                assert len(labels_copy) == self.config.n_attributes, ("Invalid number of labels for given sentence")
+                sentence_length = len(sentence)
+                diff = sentence_length - len(labels_copy)
+                if diff > 0:
+                    labels_copy += labels_copy*diff
+            else:
+                labels_copy = [label[0] for label in labels_copy if type(label) is list ]
             ret.append((sentence, labels_copy))
         return ret
 

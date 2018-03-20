@@ -147,8 +147,12 @@ class MultiAttributeRNNModel(RNNModel):
         ret = []
         for i, (sentence, labels) in enumerate(examples_raw):
             preds_ = preds[i]
+            print("Preds:", preds_)
+            print("Labels", labels)
             #preds_ = np.expand_dims(preds[i], axis = 2)
             labels_ = copy.deepcopy(np.squeeze(labels))
+            print("squeezed:", labels_)
+            print(" ")
             #labels_ = labels[:]
             assert len(preds_) == len(labels_)
             ret.append([sentence, labels_, preds_])
@@ -173,7 +177,10 @@ class MultiAttributeRNNModel(RNNModel):
             '''
             returns: array of accuracy scores of size n_attributes or batch_sze depending on axis
             '''
+            print("Y_pred", Y_pred)
+            print("Y_true",Y_true)
             accuracy = Y_pred==Y_true
+            print("bool", accuracy)
             accuracy = np.mean(accuracy, axis = axis)
             return accuracy
         
@@ -192,6 +199,7 @@ class MultiAttributeRNNModel(RNNModel):
 
         acc_array = []
         sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
+        print(predictions)
         labels_np = np.array(class_labels)
         predictions_np = np.array(predictions)
         return test_accuracy(predictions_np,labels_np)

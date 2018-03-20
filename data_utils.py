@@ -2,7 +2,7 @@
 '''
 File for accessing and manipulating the data
 '''
-
+from defs import NAN_TOK, START_TOK, END_TOK
 import pandas as pd
 import pprint
 import numpy as np
@@ -17,10 +17,29 @@ test_data_file = "data/test_utf.pkl"
 
 X_cat = "description"
 
-NAN_TOK = "nnaaann"
+def process_frame_for_language_model(data_frame):
+    def add_start_and_end_tokens(row):
+        row.append(END_TOK)
+        row.insert(0, START_TOK)
+        return row
+    data_frame[X_cat] = data_frame[X_cat].apply(add_start_and_end_tokens)
+    return data_frame
 
 def data_frame_as_list(df):
     return [[row] for row in df.as_matrix()]
+
+def frame_dict_to_list_dict(frame_dict, frame=None):
+    '''
+    args: a dictionary of data frames
+    return: a dictionary of list equivalents of the data frames
+    '''
+    list_dict = {}
+    for key, value in frame_dict.items():
+        if frame:
+            list_dict[key] = value[frame].as_matrix()
+        else:
+            list_dict[key] = value[frame].as_matrix()
+    return list_dict
 
 def descritize(data, y_cat,  k = 20):
     '''
@@ -45,8 +64,47 @@ def descritize(data, y_cat,  k = 20):
         data[i] = df[y_cat]
     return data
 
+class LabelsHelperLM():
+    version = 'LM'
+    def __init__(self, batch_dict, emb_helper):
+        self.batch_dict = batch_dict
+        self.labels_frame_batch_dict = self.input_dict_to_label_dict()
+        self.emb_helper = emb_helper
+        self.labels_list_dict = frame_dict_to_list_dict(self.labels_frame_batch_dict, frame=X_cat) 
+        self.classes_list_dict = None
+        self.train_classes = None
+        self.dev_classes = None
+        self.test_classes = None 
+
+    def update_classes_from_embeddings(self, tok2ind, unk_ind):
+        classes_list_dict = {}
+        for key, value in self.labels_list_dict.items():
+            classes_list_dict[key] = self.emb_helper.tok2ind_ind2tok(value, lookup_dict=tok2ind, unk_indice=unk_ind)
+        self.classes_list_dict = classes_list_dict
+        self.train_classes = self.classes_list_dict["train"]
+        self.dev_classes = self.classes_list_dict["dev"]
+        self.test_classes = self.classes_list_dict["test"]
+
+    def input_dict_to_label_dict(self):
+        labels_dict = {}
+        for key, value in self.batch_dict.items():
+            labels_dict[key] = self.input_data_frame_to_label_data_frame(value) 
+        return labels_dict
+
+    @staticmethod
+    def input_data_frame_to_label_data_frame(data_frame):
+        def add_end_token_remove_start_token(row):
+            row_copy = copy.deepcopy(row)
+            row_copy.append(END_TOK)
+            row_copy.pop(0)
+            return row_copy
+        data_frame_copy = data_frame.copy(deep=True)
+        data_frame_copy[X_cat] = data_frame_copy[X_cat].copy(deep=True).apply(add_end_token_remove_start_token)
+        return data_frame_copy
+
 class LabelsHelperMulti():
     num_classes_max = 0 # the number of classes of the attribute with the most classes (gets set in init)
+    version = 'multi'
     def __init__(self, batch_dict, attributes):
         '''
         batch_dict is dict of form: {"train" : data_frame, "dev" : data_frame, "test" : data_frame}
@@ -101,7 +159,7 @@ class LabelsHelperMulti():
         return mask
 
 class LabelsHelper():
-
+    version = 'single'
     def __init__(self, batch_dict, Y_cat):
         '''
         batch_dict is dict of form: {"train" : data_frame, "dev" : data_frame, "test" : data_frame}
@@ -125,6 +183,7 @@ class LabelsHelper():
         self.test_classes =self.label_list_2_class_list(self.test_labels)
         self.classes_list_dict = {"train": self.train_classes, "dev" : self.dev_classes, "test" : self.test_classes}
 
+    
     def label_list_2_class_list(self, label_list):
         class_list = []
         for label in label_list:
@@ -152,14 +211,14 @@ class LabelsHelper():
 
 class DataHelper():
 
-    def __init__(self,max_len=None, data = None):
+    def __init__(self,max_len=None, data = None, language_model = False):
         '''
         Max-len is useful for testing 
         '''
         self.max_length = 0
         self.limit = max_len
         if data is None:
-            self.train_data,self.dev_data,self.test_data = self.load_data(max_len=self.limit)
+            self.train_data,self.dev_data,self.test_data = self.load_data(max_len=self.limit, language_model=language_model)
         else: 
             self.train_data,self.dev_data,self.test_data = data
         self.X_train = self.train_data[X_cat]
@@ -169,7 +228,7 @@ class DataHelper():
         self.vocab, self.word_freq_dict = self.generate_vocab_and_word_frequencies()
         self.vocab_to_index = {v:i for i,v in enumerate(sorted(list(self.vocab)))}
         
-    def load_data(self,max_len=None):
+    def load_data(self,max_len=None, language_model=False):
         '''
         Loads the data from the pickle file. Called at initialization 
         returns: train_data,dev_data,test_data
@@ -178,10 +237,17 @@ class DataHelper():
         for filename in [train_data_file,dev_data_file,test_data_file]:
             data_frame = pd.read_pickle(filename)
             data_frame = data_frame.fillna(NAN_TOK)
+            if language_model:
+                data_frame = process_frame_for_language_model(data_frame)
             if max_len == None: loaded_data.append(data_frame)
             else: loaded_data.append(data_frame[:max_len])
         return loaded_data
 
+    def get_data_dict(self):
+        train_copy = self.train_data.copy(deep=True)
+        dev_copy = self.dev_data.copy(deep=True)
+        test_copy = self.test_data.copy(deep=True)
+        return {"train": train_copy, "dev":dev_copy, "test":test_copy}
     def get_all_data(self,category):
         #returns the concatenated 
         all_data = np.array([])
@@ -289,11 +355,9 @@ class DataHelper():
         return ret  
 
 if __name__ == "__main__": 
-    #du =DataHelper(50)
-    pass
-
-    #train = du.train_data
-    #print(train["region_2"])
+    du =DataHelper(5, language_model = True)
+    train = du.train_data
+    print(train)
     #print(train["region_2"].as_matrix())
     #features = ["region_2", "price"]
     #print(train["price"].dtype)
