@@ -16,9 +16,9 @@ import os
 OUTPUT_PATH = "results/hyper_parameters/"
 FILE_NAME = "hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
 MODEL_NAME = "lstm/"
-POSS_LR = 10**np.random.uniform(-5, 0, 4)
+POSS_LR = [0.01]
 POSS_EPOCHS = [80]
-POSS_HIDDEN_SIZE = [50,100,200]
+POSS_HIDDEN_SIZE = [300]
 
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
 
