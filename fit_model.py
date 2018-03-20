@@ -46,7 +46,7 @@ if __name__ == "__main__":
     print("Hidden Size",hs)
     print("Learning Rate",lr)
     print("epochs",epochs)
-    print("lmit ",limit)
+    print("limit ",limit)
     print("test_batch",test_batch)
 
     fit_model(y_cat,hs,lr,epochs,limit,test_batch)
