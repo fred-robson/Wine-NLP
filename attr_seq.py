@@ -71,6 +71,8 @@ class Attribute2SequenceModel(RNNModel):
             '''
             returns: array of accuracy scores of size n_attributes or batch_sze depending on axis
             '''
+            print("Pred:",Y_pred)
+            print("True:",Y_true)
             accuracy = Y_pred==Y_true
             accuracy = np.mean(accuracy, axis = axis)
             return accuracy
@@ -82,11 +84,10 @@ class Attribute2SequenceModel(RNNModel):
             return f1_scores
 
         def test_accuracy(Y_pred,Y_true):
-            acc_cat = accuracy_score(Y_pred, Y_true)
-            acc_batch = np.mean(acc_cat)
-            f1_w  = f1_score(Y_pred,Y_true,average="weighted")  
-            f1_m = f1_score(Y_pred,Y_true,average="macro")  
-            return acc_batch,acc_cat,f1_w,f1_m
+            acc_batch = np.mean(accuracy_score(Y_pred, Y_true))
+            f1_w  = np.mean(f1_score(Y_pred,Y_true,average="weighted"))  
+            f1_m = np.mean(f1_score(Y_pred,Y_true,average="macro"))  
+            return acc_batch,f1_w,f1_m
 
         acc_array = []
         sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
@@ -131,20 +132,7 @@ class Attribute2SequenceModel(RNNModel):
 
 
     def __init__(self, helper, config, pretrained_embeddings,cat=None,test_batch=None,limit=None, many2one=False):
-        self.data_helper = helper
-        self.config = config
-        self.max_length = min(self.config.max_length, self.data_helper.max_length)
-        self.config.max_length = self.max_length
-        self.pretrained_embeddings = pretrained_embeddings
-        self.cat = cat
-        self.test_batch = test_batch
-        self.limit = limit
-        self.many2one = many2one
-        # Defining placeholders.
-        self.input_placeholder = None
-        self.labels_placeholder = None
-        self.mask_placeholder = None
-        self.dropout_placeholder = None
+        print("Num Classes: ",config.n_classes )
+        super(Attribute2SequenceModel, self).__init__(helper, config, pretrained_embeddings, cat, test_batch, limit)
 
-        self.build()
 

@@ -1,5 +1,6 @@
 from lstm import RNNModel, Config, pad_sequences
 from lstm_full import MultiAttributeRNNModel
+from attr_seq import Attribute2SequenceModel
 import embeddings as emb
 import tensorflow as tf
 import data_utils as du
@@ -41,8 +42,6 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
 
     embeddings = sub_emb_matrix
     embeddings = np.asarray(embeddings)
-
-    print(label_helper.train_classes)
     #Final data_set_up 
     train_raw = [X_train_indices, label_helper.train_classes]
     dev_raw = [X_dev_indices, label_helper.dev_classes]
@@ -62,7 +61,7 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
             attribute_mask = label_helper.attribute_mask
             model = MultiAttributeRNNModel(data_helper, config, embeddings, attribute_mask, label_helper.attributes, emb_helper.test_batch, limit) 
         elif label_helper.version == "LM":
-            model = RNNModel(data_helper, config, embeddings,"Language_Model",emb_helper.test_batch,limit,many2one=False)
+            model = Attribute2SequenceModel(data_helper, config, embeddings,"Language_Model",emb_helper.test_batch,limit,many2one=False)
         print("took %.2f seconds"%(time.time() - start))
         
         init = tf.global_variables_initializer()
