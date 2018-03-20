@@ -28,23 +28,24 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
 
 
     #Pull X data
-    X_train_df, X_dev_df = data_helper.X_train, data_helper.X_dev
+    X_train_df, X_dev_df,X_test_df = data_helper.X_train, data_helper.X_dev, data_helper.X_test
     vocab, _ = data_helper.generate_vocab_and_word_frequencies() 
     X_train_tokens = X_train_df.as_matrix()
     X_dev_tokens = X_dev_df.as_matrix()
+    X_test_tokens = X_test_df.as_matrix()
 
     #Gives appropriate indices for embeddings lookup 
     sub_emb_matrix, sub_tok2ind,sub_ind2tok, sub_unk_ind = emb_helper.get_sub_embeddings(vocab)
     X_train_indices = emb_helper.tok2ind_ind2tok(X_train_tokens, lookup_dict = sub_tok2ind, unk_indice = sub_unk_ind)
     X_dev_indices = emb_helper.tok2ind_ind2tok(X_dev_tokens, lookup_dict = sub_tok2ind, unk_indice = sub_unk_ind)
+    X_test_indices = emb_helper.tok2ind_ind2tok(X_test_tokens, lookup_dict = sub_tok2ind, unk_indice = sub_unk_ind)
     embeddings = sub_emb_matrix
     embeddings = np.asarray(embeddings)
 
     #Final data_set_up 
     train_raw = [X_train_indices, label_helper.train_classes]
     dev_raw = [X_dev_indices, label_helper.dev_classes]
-
-
+    test_raw = [X_test_indices, label_helper.test_classes]
 
     #Configures the model 
     config.embed_size = embeddings.shape[1]
@@ -66,7 +67,7 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
 
         with tf.Session() as session:
             session.run(init)
-            best_result_dev,corresponding_train,num_epochs = model.fit(session, saver, train_raw, dev_raw)
+            best_result_dev,corresponding_train,num_epochs = model.fit(session, saver, train_raw, dev_raw,test_raw)
             print(best_result_dev)
 
     return best_result_dev,corresponding_train,num_epochs

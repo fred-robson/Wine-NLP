@@ -353,7 +353,7 @@ class RNNModel(Model):
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
     
-    def report_results(self, sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss):
+    def report_results(self, sess, saver, result_train, result_dev, result_test, best_dev_result, train_result_best, best_epoch, epoch, loss):
         
         print("     | Acc      F1_W      F1_M |")
         print("     |-------------------------|")
@@ -370,11 +370,11 @@ class RNNModel(Model):
                 saver.save(sess, self.config.model_output)
                 self.save_model_description()
 
-        self.save_epoch_outputs(epoch,loss,result_dev,result_train)
+        self.save_epoch_outputs(epoch,loss,result_dev,result_train,result_test)
         return best_dev_result, train_result_best, best_epoch
 
 
-    def fit(self, sess, saver, train_raw, dev_set_raw):
+    def fit(self, sess, saver, train_raw, dev_set_raw, test_set_raw):
         
         train = self.preprocess_data(train_raw)
         best_dev_result = (-1.,-1.,-1.)
@@ -393,8 +393,12 @@ class RNNModel(Model):
 
             result_train  = self.evaluate(sess, train_raw)
             result_dev = self.evaluate(sess, dev_set_raw)
+            result_test = self.evaluate(sess, test_set_raw)
+            print("Test")
+            print(result_test)
 
-            best_dev_result, train_result_best, best_epoch = self.report_results(sess, saver, result_train, result_dev, best_dev_result, train_result_best, best_epoch, epoch, loss)
+            best_dev_result, train_result_best, best_epoch = self.report_results(sess, saver, result_train, result_dev, result_test, best_dev_result, train_result_best, best_epoch, epoch, loss)
+
                                
         return best_dev_result,train_result_best, best_epoch
 
@@ -414,7 +418,7 @@ class RNNModel(Model):
                 all_info["test_batch"] = self.test_batch
                 pickle.dump(all_info,f)
 
-    def save_epoch_outputs(self,epoch,loss,result_dev,result_train, Y_cat = None):
+    def save_epoch_outputs(self,epoch,loss,result_dev,result_train, result_test,Y_cat = None):
         '''
         Saves each epoch's output to the csv. Note that opens and closes CSV every time, so can track what is happening
         even with screen 
@@ -432,6 +436,7 @@ class RNNModel(Model):
             f.write(str(loss)+",")
             for r in result_dev:f.write(str(r)+",") 
             for r in result_train:f.write(str(r)+",") 
+            for r in result_test: f.write(str(r)+",")
             f.write(str(epoch)+"\n")
 
 

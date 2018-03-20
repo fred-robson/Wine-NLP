@@ -10,7 +10,7 @@ from hyperparam_tuning import RESULT_INDEX
 import tensorflow as tf
 
 DEFAULT_FOLDER = "results/<class 'lstm.RNNModel'>/lstm_2_layer"
-DATA_TYPE = "test"
+DATA_TYPE = "train"
 
 
 
@@ -45,6 +45,8 @@ def get_data_for_model(data_helper,label_helper,emb_helper,config,data_type="tes
 
 
 def main(model_path):
+
+    print("Model Path:",model_path)
     with open(model_path+"/desc.pkl","rb") as f:
         print("Loading pkl file")
         desc = pickle.load(f)
