@@ -24,14 +24,15 @@ POSS_HIDDEN_SIZE = [50,100,200]
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
 
 
+
 def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
     #initialize helpers
-
 
     #Pull X data
     X_train_df, X_dev_df = data_helper.X_train, data_helper.X_dev
     X_train_tokens = X_train_df.as_matrix()
     X_dev_tokens = X_dev_df.as_matrix()
+
     #Gives appropriate indices for embeddings lookup 
     sub_emb_matrix, sub_tok2ind,sub_ind2tok, sub_unk_ind = emb_helper.get_sub_embeddings(data_helper.vocab)
     X_train_indices = emb_helper.tok2ind_ind2tok(X_train_tokens, lookup_dict = sub_tok2ind, unk_indice = sub_unk_ind)
@@ -39,6 +40,7 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
     
     if label_helper.version == "LM":
         label_helper.update_classes_from_embeddings(sub_tok2ind, sub_unk_ind)
+        config.n_classes = len(sub_emb_matrix)
 
     embeddings = sub_emb_matrix
     embeddings = np.asarray(embeddings)
@@ -46,10 +48,8 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
     train_raw = [X_train_indices, label_helper.train_classes]
     dev_raw = [X_dev_indices, label_helper.dev_classes]
 
-
     #Configures the model 
     config.embed_size = embeddings.shape[1]
-
 
     #Runs the model 
     with tf.Graph().as_default():
@@ -125,11 +125,10 @@ def find_best_hyperparamaters(data_helper,emb_helper,label_helper,limit, y_cat=N
 
 
 def main(limit, model, num_embed):
-    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch=num_embed )
-    
     if model == "language_model": language_model = True
     else: language_model = False
 
+    emb_helper = emb.embedding_helper(save_to_pickle = False, test_batch=num_embed, language_model=language_model )
     data_helper = du.DataHelper(limit, language_model=language_model)
 
     f = open(OUTPUT_PATH+MODEL_NAME+FILE_NAME,"w+")

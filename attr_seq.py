@@ -24,7 +24,35 @@ class Attribute2SequenceModel(RNNModel):
     single hidden layer.
     This network will generate wine reviews given attributes (region, points, price, etc.)
     """
-    
+
+    def add_placeholders(self):
+        """Generates placeholder variables to represent the input tensors.
+        """
+        self.input_placeholder = tf.placeholder(tf.int32, shape = (None, self.max_length, self.config.n_features))
+        self.labels_placeholder = tf.placeholder(tf.int32, shape = (None, self.max_length))
+        self.mask_placeholder = tf.placeholder(tf.bool, shape = (None, self.max_length))
+        self.dropout_placeholder = tf.placeholder(tf.float32, shape = ())
+        self.attribute_placeholder = tf.placeholder(tf.int32, shape=(None, self.config.n_attributes))
+
+    def add_attribute_embedding(self):
+        embeddings = tf.get_variable("attribute_embeddings", shape=(self.n_attribute_classes, self.attribute_embed_size),initializer = tf.contrib.layers.xavier_initializer())
+        embeddings = tf.embedding_looking(embeddings, self.attribute_placeholder)
+
+
+    def add_embedding(self):
+        """Adds an embedding layer that maps from input tokens (integers) to vectors and then
+        concatenates those vectors:
+
+        Returns:
+            embeddings: tf.Tensor of shape (None, max_length, n_features*embed_size)
+        """
+        #with tf.variable_scope("RNN", reuse = tf.AUTO_REUSE):
+        embeddings = tf.get_variable("embeddings", initializer = self.pretrained_embeddings,trainable=True)
+        embeddings = tf.nn.embedding_lookup(embeddings, self.input_placeholder)
+        embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_features* self.config.embed_size])
+        embeddings = tf.cast(embeddings, tf.float32)
+        return embeddings
+
     def add_prediction_op(self):
         """Adds the unrolled RNN.
         Returns:
@@ -52,6 +80,7 @@ class Attribute2SequenceModel(RNNModel):
         preds = tf.add(tf.matmul(outputs, U), b_2)
         if not self.many2one:
             preds = tf.reshape(preds, [-1, self.config.max_length, self.config.n_classes]) 
+        #preds = tf.Print(preds, [preds], summarize = self.config.n_classes)
         return preds
     
     def evaluate(self, sess, examples_raw, examples = None):
@@ -67,15 +96,15 @@ class Attribute2SequenceModel(RNNModel):
         The 1-to-1 accuracy for predicting attributes, F_1 (weighted), F_1 (macro)
         """
         #token_cm = ConfusionMatrix(labels=LBLS)
-        def accuracy_score(Y_pred, Y_true, axis = 0):
+        def accuracy_score(Y_pred, Y_true):
             '''
             returns: array of accuracy scores of size n_attributes or batch_sze depending on axis
             '''
-            print("Pred:",Y_pred)
-            print("True:",Y_true)
-            accuracy = Y_pred==Y_true
-            accuracy = np.mean(accuracy, axis = axis)
-            return accuracy
+            acc_array = np.array([])
+            for pred, true in zip(Y_pred, Y_true):
+                accuracy = np.array(pred)==np.array(true)
+                acc_array = np.append(acc_array,np.mean(accuracy))
+            return np.mean(acc_array)
         
         def f1_score(Y_pred, Y_true, average = 'weighted'):
             f1_scores = np.array([])
@@ -85,15 +114,37 @@ class Attribute2SequenceModel(RNNModel):
 
         def test_accuracy(Y_pred,Y_true):
             acc_batch = np.mean(accuracy_score(Y_pred, Y_true))
-            f1_w  = np.mean(f1_score(Y_pred,Y_true,average="weighted"))  
-            f1_m = np.mean(f1_score(Y_pred,Y_true,average="macro"))  
+            f1_w = 0
+            f1_m = 0
+            #f1_w  = np.mean(f1_score(Y_pred,Y_true,average="weighted"))  
+            #f1_m = np.mean(f1_score(Y_pred,Y_true,average="macro"))  
             return acc_batch,f1_w,f1_m
 
         acc_array = []
         sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
-        labels_np = np.array(class_labels)
-        predictions_np = np.array(predictions)
-        return test_accuracy(predictions_np,labels_np)
+        return test_accuracy(predictions,class_labels)
+
+    def consolidate_predictions(self, examples_raw, examples, preds):
+        """Batch the predictions into groups of sentence length.
+        """
+        assert len(examples_raw) == len(examples)
+        assert len(examples_raw) == len(preds)
+
+        ret = []
+        for i, (sentence, labels) in enumerate(examples_raw):
+            _, _, mask = examples[i]
+            labels_ = None
+            #print("labels:", labels)
+            #print("preds unmasked:", preds[i])
+            labels_gt = labels[:]
+            labels_ = [l for l, m in zip(preds[i], mask) if m] # only select elements of mask.
+            #print("preds:", labels_)
+            assert len(labels_) == len(labels_gt)
+            #print("labels np:", np.array(labels))
+            #print(" ")
+            ret.append([sentence, labels_gt, labels_])
+        #print("Predictions (sent, true, pred): ", ret)
+        return ret
 
     def save_model_description(self):
         '''
@@ -133,6 +184,9 @@ class Attribute2SequenceModel(RNNModel):
 
     def __init__(self, helper, config, pretrained_embeddings,cat=None,test_batch=None,limit=None, many2one=False):
         print("Num Classes: ",config.n_classes )
+        self.n_attribute_classes = 0
+        self.attribute_embed_size = 0
+        config.n_attributes = 5
         super(Attribute2SequenceModel, self).__init__(helper, config, pretrained_embeddings, cat, test_batch, limit)
 
 
