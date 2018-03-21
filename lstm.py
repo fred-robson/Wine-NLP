@@ -37,6 +37,7 @@ class Config:
     n_epochs = 30
     max_grad_norm = 10.
     lr = 0.01
+    n_layers = 2
 
     def __init__(self, model, cell, n_classes = 0,result_index=0,output_path=None):
         '''
@@ -67,6 +68,7 @@ class Config:
         self.desc_output = self.output_path+"desc.pkl"
         self.desc_txt = self.output_path+"desc.txt"
         self.epochs_csv = self.output_path+"epochs.csv"
+        self.gen_output = self.output_path+"generations.txt"
 
 
 def pad_sequences(data, max_length, many2one = False):
@@ -324,11 +326,12 @@ class RNNModel(Model):
         preds = []
         prog = Progbar(target=1 + int(len(inputs) / self.config.batch_size))
         for i, batch in enumerate(minibatches(inputs, self.config.batch_size, shuffle=False)):
-            # Ignore predict
-            batch = batch[:1] + batch[2:]
-            preds_ = self.predict_on_batch(sess, *batch)
-            preds += list(preds_)
-            prog.update(i + 1, [])
+            if len(batch[0]) == self.config.batch_size:
+                # Ignore predict
+                batch = batch[:1] + batch[2:]
+                preds_ = self.predict_on_batch(sess, *batch)
+                preds += list(preds_)
+                prog.update(i + 1, [])
         return self.consolidate_predictions(inputs_raw_copy, inputs, preds)
 
     def predict_on_batch(self, sess, inputs_batch, mask_batch):
@@ -389,7 +392,8 @@ class RNNModel(Model):
             loss = []
             all_minibatches = list(minibatches(train, self.config.batch_size))
             for minibatch in tqdm(all_minibatches,desc="Training"):
-                loss.append([self.train_on_batch(sess, *minibatch)])
+                if len(minibatch[0]) == self.config.batch_size:
+                    loss.append([self.train_on_batch(sess, *minibatch)])
             loss = np.array(loss)
             loss = np.mean(loss)
             print("Loss: ", loss,"\n")
@@ -451,6 +455,7 @@ class RNNModel(Model):
         self.config = config
         self.max_length = min(self.config.max_length, self.data_helper.max_length)
         self.config.max_length = self.max_length
+        self.current_length = self.max_length
         self.pretrained_embeddings = pretrained_embeddings
         self.cat = cat
         self.test_batch = test_batch
