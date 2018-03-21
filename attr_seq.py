@@ -16,7 +16,7 @@ from model import Model
 from util import minibatches
 import os,pickle
 import sklearn.metrics
-from lstm import RNNModel
+from lstm import RNNModel, Config
 
 def softmax(x):
     orig_shape = x.shape
@@ -34,6 +34,42 @@ def softmax(x):
     assert x.shape == orig_shape
     return x
 
+def pad_data(data, max_length):
+    """Ensures each input-output seqeunce pair in @data is of length
+    @max_length by padding it with zeros and truncating the rest of the
+    sequence.
+    
+    Args:
+        data: is a list of (sentence, labels) tuples. @sentence is a list
+            containing the words in the sentence and @label is a list of
+            output labels. Each word itself a list of
+            @n_features features.
+        max_length: the desired length for all input/output sequences.
+    Returns:
+        a new list of data points of the structure (sentence', labels', mask).
+        sentence' and  mask are of length @max_length,
+        labels' will be of size len(labels) as these are attributes
+        of the entire sentence (i.e. they should remain unchanged)
+    """
+    ret = []
+
+    # Use this zero vector when padding sequences.
+    zero_vector = [0] * Config.n_features
+    zero_label = 0
+
+    for sentence, labels, attr in data:
+        ### YOUR CODE HERE (~4-6 lines)
+        labels_copy = labels[:]
+        sentence_copy = sentence[:]
+        sentence_length = len(sentence_copy)
+        diff = max_length - sentence_length
+        if diff >  0:
+            sentence_copy += [zero_vector]*diff
+            labels_copy += [zero_label]*diff
+        mask = [(i < sentence_length) for i,_ in enumerate(sentence_copy)]
+        ret.append((sentence_copy[:max_length], labels_copy[:max_length] , mask[:max_length], attr))
+        ### END YOUR CODE ###
+    return ret
 
 class Attribute2SequenceModel(RNNModel):
     """
@@ -45,28 +81,24 @@ class Attribute2SequenceModel(RNNModel):
     def add_placeholders(self):
         """Generates placeholder variables to represent the input tensors.
         """
-        self.input_placeholder = tf.placeholder(tf.int32, shape = (None, self.max_length, self.config.n_features))
-        self.labels_placeholder = tf.placeholder(tf.int32, shape = (None, self.max_length))
-        self.mask_placeholder = tf.placeholder(tf.bool, shape = (None, self.max_length))
+        self.input_placeholder = tf.placeholder(tf.int32, shape = (self.config.batch_size, None, self.config.n_features))
+        self.labels_placeholder = tf.placeholder(tf.int32, shape = (self.config.batch_size, None))
+        self.mask_placeholder = tf.placeholder(tf.bool, shape = (self.config.batch_size, None))
         self.dropout_placeholder = tf.placeholder(tf.float32, shape = ())
         self.attribute_placeholder = tf.placeholder(tf.int32, shape=(None, self.config.n_attributes))
-        self.test_time = tf.placeholder(tf.bool, shape=[])
-        self.init_state = tf.placeholder(tf.float32, [2, 2, None, self.config.hidden_size])
+        self.init_state_placeholder = tf.placeholder(tf.float32, [2, 2, None, self.config.hidden_size])
 
     def add_attribute_embedding(self):
-        embeddings_1 = tf.get_variable("attribute_embeddings_layer_1", shape=(self.n_attribute_classes, self.attribute_embed_size),initializer = tf.contrib.layers.xavier_initializer())
-        embeddings_2 = tf.get_variable("attribute_embeddings_layer_2", shape=(self.n_attribute_classes, self.attribute_embed_size),initializer = tf.contrib.layers.xavier_initializer())
-        embeddings = tf.embedding_lookup(embeddings, self.attribute_placeholder)
+        embeddings = tf.get_variable("attribute_embeddings", shape=(self.n_attribute_classes, self.attribute_embed_size),initializer = tf.contrib.layers.xavier_initializer())
+        embeddings = tf.nn.embedding_lookup(embeddings, self.attribute_placeholder)
         embeddings = tf.reshape(embeddings, [-1, self.config.hidden_size, self.config.n_attributes])
         embeddings = tf.cast(embeddings, tf.float32)
         embeddings = tf.reduce_sum(embeddings, -1)
+
+        state_per_layer_list = tf.unstack(self.init_state_placeholder, axis=0)
+
+        embeddings = tuple([tf.nn.rnn_cell.LSTMStateTuple(tf.divide(tf.add(embeddings, state_per_layer_list[i][0]), 2.0),tf.divide(tf.add( embeddings, state_per_layer_list[i][1]),2.0 )) for i in range(self.config.n_layers)])
         return embeddings
-
-
-    def add_output_state(self):
-        state_per_layer_list = tf.unpack(self.init_state, axis=0)
-        rnn_tuple_state = tuple([tf.nn.rnn_cell.LSTMStateTuple(state_per_layer_list[idx][0], state_per_layer_list[idx][1]) for idx in range(2)])
-        return rnn_tuple_state
 
     def add_embedding(self):
         """Adds an embedding layer that maps from input tokens (integers) to vectors and then
@@ -77,55 +109,87 @@ class Attribute2SequenceModel(RNNModel):
         """
         #with tf.variable_scope("RNN", reuse = tf.AUTO_REUSE):
         embeddings = tf.get_variable("embeddings", initializer = self.pretrained_embeddings,trainable=True)
+        inputs = self.input_placeholder
+        inputs = tf.reshape(inputs, [self.config.batch_size, -1 , self.config.n_features])
         embeddings = tf.nn.embedding_lookup(embeddings, self.input_placeholder)
-        embeddings = tf.reshape(embeddings, [-1, self.max_length, self.config.n_features* self.config.embed_size])
+        embeddings = tf.reshape(embeddings, [self.config.batch_size, -1, self.config.n_features* self.config.embed_size])
         embeddings = tf.cast(embeddings, tf.float32)
         return embeddings
 
-    def add_prediction_op(self):
+    def add_outputs_op(self):
+        x = self.add_embedding() 
+
+        #last_state = tf.cond(self.test_time, lambda:self.add_output_state() ,lambda: self.add_attribute_embedding())
+        
+        last_state = self.add_attribute_embedding()
+        rnn_cell = tf.nn.rnn_cell.LSTMCell(self.config.hidden_size, initializer = tf.contrib.layers.xavier_initializer(), state_is_tuple=True)
+        #runs the entire rnn - "state" is the final state of the lstm
+        multi_rnn_cell = tf.nn.rnn_cell.MultiRNNCell([rnn_cell]*self.config.n_layers, state_is_tuple=True) 
+        outputs, state = tf.nn.dynamic_rnn(cell=multi_rnn_cell,
+                                           inputs=x, dtype=tf.float32, initial_state = last_state)
+        return outputs, state
+
+
+    def add_prediction_op(self, outputs):
         """Adds the unrolled RNN.
         Returns:
             pred: tf.Tensor of shape (batch_size, max_length, n_classes)
         """
-        x = self.add_embedding()
         dropout_rate = self.dropout_placeholder
-
-        last_state = tf.cond(self.test_time, lambda:self.add_output_state() ,lambda: self.add_attribute_embedding())
-
         U = tf.get_variable("OutputWeights", shape = (self.config.hidden_size, self.config.n_classes), initializer = tf.contrib.layers.xavier_initializer())
         b_2 = tf.get_variable("OutputBias", shape = (self.config.n_classes), initializer = tf.zeros_initializer())
 
-        rnn_cell = tf.nn.rnn_cell.LSTMCell(self.config.hidden_size, initializer = tf.contrib.layers.xavier_initializer(), state_is_tuple=True)
-        #runs the entire rnn - "state" is the final state of the lstm
-        multi_rnn_cell = tf.nn.rnn_cell.MultiRNNCell([rnn_cell]*2, state_is_tuple=True) 
-        outputs, state = tf.nn.dynamic_rnn(cell=multi_rnn_cell,
-                                           inputs=x, dtype=tf.float32, initial_state = last_state)
         outputs = tf.nn.dropout(outputs, dropout_rate) 
 
         outputs = tf.reshape(outputs, [-1, self.config.hidden_size])    
         preds = tf.add(tf.matmul(outputs, U), b_2)
+        preds = tf.reshape(preds, [self.config.batch_size, -1, self.config.n_classes])
         #preds = tf.Print(preds, [preds], summarize = self.config.n_classes)
-        return preds
-    
+        return preds 
 
-
-    def create_feed_dict(self, inputs_batch, mask_batch, labels_batch=None, dropout=1, test_time = False):
+    def create_feed_dict(self, inputs_batch, attributes, mask_batch=None, labels_batch=None, dropout=1, init_state=None):
         """Creates the feed_dict for training model.
         Returns:
             feed_dict: The feed dictionary mapping from placeholders to values.
         """
-        feed_dict = {self.input_placeholder: inputs_batch, self.dropout_placeholder: dropout, self.mask_placeholder: mask_batch, self.test_time: test_time}
+        if init_state is None:
+            init_state = np.zeros((self.config.n_layers, 2, self.config.batch_size, self.config.hidden_size))
+        feed_dict = {self.input_placeholder: inputs_batch, self.dropout_placeholder: dropout,  self.attribute_placeholder: attributes, self.init_state_placeholder: init_state}
         if labels_batch is not None:
             feed_dict[self.labels_placeholder] = labels_batch
+        if mask_batch is not None:
+            feed_dict[self.mask_placeholder]=mask_batch
         return feed_dict
 
 
-    def generate(self, sess):
-        start_data = 
-        feed = {self.input_placeholder: start_data}
+    def generate(self, sess, attributes):
+        def preds_over_batch(preds):
+            guesses = np.array([])
+            for i,pred in enumerate(preds):
+                dist = np.squeeze(pred)
+                guess = np.random.choice(dist.shape[0],1,p= dist)
+                guesses = np.append(guesses, guess)
+            return guesses
 
-        preds = sess.run(self.pred, feed_dict=feed)
+        
+        start_data = np.array([self.start_ind])
+        start_data = np.expand_dims(start_data, 0)
+        start_data_batch = [start_data for _ in range(self.config.batch_size)]
+        start_data = np.stack(start_data_batch, axis=0)
+        feed = self.create_feed_dict(inputs_batch=start_data, attributes=attributes)
 
+        sentence=start_data
+
+        for i in range(self.config.max_length):
+            current_state,preds = sess.run([self.current_state,self.pred], feed_dict=feed)
+            preds = softmax(preds)
+            preds = preds_over_batch(preds)
+            preds = np.expand_dims(preds, -1)
+            preds = np.expand_dims(preds, -1)
+            sentence = np.append(sentence, preds, axis=1)
+            preds = np.copy(preds)
+            feed = self.create_feed_dict(inputs_batch=preds, attributes=attributes, init_state=current_state)
+        return sentence
 
     def evaluate(self, sess, examples_raw, examples = None):
         """Evaluates model performance on @examples.
@@ -181,7 +245,7 @@ class Attribute2SequenceModel(RNNModel):
             return acc,PP,bleu
 
         acc_array = []
-        sentences, class_labels, predictions = zip(*self.output(sess, examples_raw, examples))
+        sentences, class_labels, predictions, attr = zip(*self.output(sess, examples_raw, examples))
         return test_accuracy(predictions,class_labels)
 
     def consolidate_predictions(self, examples_raw, examples, preds):
@@ -191,8 +255,8 @@ class Attribute2SequenceModel(RNNModel):
         assert len(examples_raw) == len(preds)
 
         ret = []
-        for i, (sentence, labels) in enumerate(examples_raw):
-            _, _, mask = examples[i]
+        for i, (sentence, labels, attributes) in enumerate(examples_raw):
+            _, _, mask, _ = examples[i]
             labels_ = None
             #print("labels:", labels)
             #print("preds unmasked:", preds[i])
@@ -202,7 +266,7 @@ class Attribute2SequenceModel(RNNModel):
             assert len(labels_) == len(labels_gt)
             #print("labels np:", np.array(labels))
             #print(" ")
-            ret.append([sentence, labels_gt, labels_])
+            ret.append([sentence, labels_gt, labels_, attributes])
         #print("Predictions (sent, true, pred): ", ret)
         return ret
 
@@ -227,7 +291,7 @@ class Attribute2SequenceModel(RNNModel):
         return best_dev_result, train_result_best, best_epoch
 
 
-    def predict_on_batch(self, sess, inputs_batch, mask_batch):
+    def predict_on_batch(self, sess, inputs_batch, mask_batch, attribute_batch):
         '''def preds_many2one(predictions):
             int_mask = tf.cast(mask_batch, dtype = tf.float32)
             predictions = tf.multiply(predictions, tf.expand_dims(int_mask, 2))
@@ -236,10 +300,59 @@ class Attribute2SequenceModel(RNNModel):
             predictions = tf.argmax(predictions, axis = 1)
             return predictions
         '''
-        feed = self.create_feed_dict(inputs_batch=inputs_batch, mask_batch=mask_batch)
+        feed = self.create_feed_dict(inputs_batch=inputs_batch, attributes=attribute_batch, mask_batch=mask_batch)
         predictions = sess.run(self.pred, feed_dict=feed)
         predictions = softmax(predictions)
         return predictions
+    
+    
+    def train_on_batch(self, sess,  inputs_batch, labels_batch, mask_batch, attributes):
+        self.config.current_batch_size = inputs_batch.shape[0]
+        feed = self.create_feed_dict(inputs_batch, attributes,labels_batch=labels_batch, mask_batch=mask_batch,
+                                     dropout=self.config.dropout)
+        #summary, _, loss = sess.run([merged_summaries, self.train_op, self.loss], feed_dict=feed)
+        _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
+        return loss
+
+    
+    def preprocess_data(self, data, pad = True):
+        '''
+        data is of form: [sentence, labels]
+
+        returns: [sentence, labels]
+        '''
+        data_copy = data
+        data_copy = self.data_helper.data_as_list_of_tuples(data_copy)
+        data_copy = self.format_labels(data_copy)
+        if pad:
+            data_copy = pad_data(data_copy, self.config.max_length)
+        return data_copy
+
+    
+    def format_labels(self, data):
+        """
+        makes sure labels  are of same dims as 
+        corresponding placeholders
+
+        data is a list of tuples: (sentence, labels)
+
+        returns: [(sentence, labels),... ] (correctly formatted)
+        """
+        ret = []
+        for sentence, labels, attr in data:
+            sentence_length = len(sentence)
+            labels_copy = copy.deepcopy(labels)
+            labels_copy = [label[0] for label in labels_copy if type(label) is list ]
+            ret.append((sentence, labels_copy, attr))
+        return ret
+
+    def build(self):
+        self.add_placeholders()
+        self.outputs, self.current_state = self.add_outputs_op()
+        self.pred = self.add_prediction_op(self.outputs)
+        #self.pred_test = self.add_prediction_op(raw = True)
+        self.loss = self.add_loss_op(self.pred)
+        self.train_op = self.add_training_op(self.loss)
 
 
     def save_model_description(self):
@@ -279,11 +392,13 @@ class Attribute2SequenceModel(RNNModel):
 
 
 
-    def __init__(self, helper, config, pretrained_embeddings,cat=None,test_batch=None,limit=None, many2one=False):
+    def __init__(self, helper, config, pretrained_embeddings,cat=None,test_batch=None,limit=None, many2one=False, start_ind = None, end_ind = None):
         print("Num Classes: ",config.n_classes )
-        self.n_attribute_classes = 0
-        self.attribute_embed_size = 0
-        config.n_attributes = 5
+        self.n_attribute_classes = helper.n_attribute_classes
+        self.attribute_embed_size = config.hidden_size
+        config.n_attributes = 4
+        self.start_ind = start_ind
+        self.end_ind = end_ind
         super(Attribute2SequenceModel, self).__init__(helper, config, pretrained_embeddings, cat, test_batch, limit)
 
 

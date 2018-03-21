@@ -13,12 +13,14 @@ import sklearn.metrics
 import inspect
 import argparse
 import os
+from defs import START_TOK, END_TOK
+from util import minibatches
 
 OUTPUT_PATH = "results/hyper_parameters/"
 FILE_NAME = "hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
 MODEL_NAME = "lstm/"
 POSS_LR = [0.01]
-POSS_EPOCHS = [80]
+POSS_EPOCHS = [1]
 POSS_HIDDEN_SIZE = [300]
 
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
@@ -45,12 +47,16 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
         label_helper.update_classes_from_embeddings(sub_tok2ind, sub_unk_ind)
         config.n_classes = len(sub_emb_matrix)
 
-    embeddings = sub_emb_matrix
-    embeddings = np.asarray(embeddings)
     #Final data_set_up 
     train_raw = [X_train_indices, label_helper.train_classes]
     dev_raw = [X_dev_indices, label_helper.dev_classes]
     test_raw = [X_test_indices, label_helper.test_classes]
+    if label_helper.version == "LM":
+        train_raw.append(data_helper.attributes_train)
+        dev_raw.append(data_helper.attributes_dev)
+        test_raw.append(data_helper.attributes_test)
+    embeddings = sub_emb_matrix
+    embeddings = np.asarray(embeddings)
 
     #Configures the model 
     config.embed_size = embeddings.shape[1]
@@ -65,7 +71,7 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
             attribute_mask = label_helper.attribute_mask
             model = MultiAttributeRNNModel(data_helper, config, embeddings, attribute_mask, label_helper.attributes, emb_helper.test_batch, limit) 
         elif label_helper.version == "LM":
-            model = Attribute2SequenceModel(data_helper, config, embeddings,"Language_Model",emb_helper.test_batch,limit,many2one=False)
+            model = Attribute2SequenceModel(data_helper, config, embeddings,"Language_Model",emb_helper.test_batch,limit,many2one=False, start_ind=sub_tok2ind[START_TOK], end_ind=sub_tok2ind[END_TOK])
         print("took %.2f seconds"%(time.time() - start))
         
         init = tf.global_variables_initializer()
@@ -76,9 +82,48 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
             best_result_dev,corresponding_train,num_epochs = model.fit(session, saver, train_raw, dev_raw,test_raw)
             print(best_result_dev)
             if label_helper.version == "LM":
-                output_train = model.output(session, train_raw)
-                output_dev = model.output(session, dev_raw)
-                output_test = model.output(session, test_raw)
+                outputs = np.array([])
+                attr_data = np.array([])
+                for i, batch in enumerate(minibatches(train_raw, config.batch_size, shuffle=False)):
+                    _, _, attr = zip(*batch)
+                    attr = np.array(attr)
+                    output_train = model.generate(session, attr)
+                    if len(outputs.shape) <2:
+                        outputs=output_train
+                        attr_data = attr
+                    else:
+                        outputs = np.append(outputs, output_train,axis=0)
+                        attr_data =np.append(attr_data, attr, axis=0)
+                outputs = np.squeeze(outputs)
+                print(attr_data.shape)
+                
+                with open(model.config.gen_output, "w+") as output:
+                   
+                    for gen_text, attributes in zip(outputs, attr_data): 
+
+                        # Compute the word spacing
+                        output.write("Attributes : ")
+                        for ind in attributes:
+                            token = data_helper.attributes_i2t[ind]
+                            token = str(token)
+                            spacing = len(token)
+                            output.write(token)
+                            output.write(" " * (spacing - len(token) + 1))
+                        output.write("\n")
+
+                        output.write("Generated Text:")
+                        for ind in gen_text:
+                            token = sub_ind2tok[ind]
+                            spacing = len(token)
+                            output.write(token)
+                            output.write(" " * (spacing - len(token) + 1))
+                        output.write("\n")
+                        output.write("\n")
+
+                #for attr in dev_raw[-1]:
+                #    output_dev = model.generate(session, attr)
+                #for attr in test_raw[-1]:
+                #    output_test = model.generate(session, attr)
 
     return best_result_dev,corresponding_train,num_epochs
 

@@ -2,7 +2,7 @@
 '''
 File for accessing and manipulating the data
 '''
-from defs import NAN_TOK, START_TOK, END_TOK
+from defs import NAN_TOK, START_TOK, END_TOK, LANGUAGE_MODEL_ATTRIBUTES
 import pandas as pd
 import pprint
 import numpy as np
@@ -17,11 +17,16 @@ test_data_file = "data/test_utf.pkl"
 
 X_cat = "description"
 
+
 def process_frame_for_language_model(data_frame):
     def add_start_and_end_tokens(row):
         row.append(END_TOK)
         row.insert(0, START_TOK)
         return row
+    full_cols = [X_cat] + LANGUAGE_MODEL_ATTRIBUTES
+    data_frame = data_frame[full_cols]    
+    for attribute in LANGUAGE_MODEL_ATTRIBUTES:
+        data_frame = data_frame.loc[data_frame[attribute] != NAN_TOK]
     data_frame[X_cat] = data_frame[X_cat].apply(add_start_and_end_tokens)
     return data_frame
 
@@ -221,6 +226,10 @@ class DataHelper():
             self.train_data,self.dev_data,self.test_data = self.load_data(max_len=self.limit, language_model=language_model)
         else: 
             self.train_data,self.dev_data,self.test_data = data
+        if language_model:
+            self.train_attr_df, self.dev_attr_df, self.test_attr_df = None,None,None
+            self.attributes_t2i,self.attributes_i2t, self.n_attribute_classes = self.characterize_attributes()
+            self.attributes_train, self.attributes_dev, self.attributes_test = self.encode_attributes()
         self.X_train = self.train_data[X_cat]
         self.X_dev = self.dev_data[X_cat]
         self.X_test = self.test_data[X_cat]
@@ -228,6 +237,40 @@ class DataHelper():
         self.vocab, self.word_freq_dict = self.generate_vocab_and_word_frequencies()
         self.vocab_to_index = {v:i for i,v in enumerate(sorted(list(self.vocab)))}
         
+
+    def characterize_attributes(self):
+
+        attributes = [self.train_data[LANGUAGE_MODEL_ATTRIBUTES], self.dev_data[LANGUAGE_MODEL_ATTRIBUTES], self.test_data[LANGUAGE_MODEL_ATTRIBUTES]]
+        price_frames  = descritize([attributes[0]["price"], attributes[1]["price"], attributes[2]["price"]], "price")
+        attributes[0]["price"], attributes[1]["price"], attributes[2]["price"] = price_frames[0], price_frames[1], price_frames[2]
+        self.train_attr_df = attributes[0]
+        self.dev_attr_df = attributes[1]
+        self.test_attr_df = attributes[2]
+        af = pd.concat(attributes)
+        attr2ind = {}
+        ind2attr = {}
+        encoding = 0
+        for key, value in af.iteritems():
+            for ind, attr in value.iteritems():
+                if attr2ind.get(attr, NAN_TOK) is NAN_TOK:
+                    attr2ind[attr] = encoding
+                    ind2attr[encoding] = attr
+                    encoding += 1
+        return attr2ind,ind2attr, encoding
+
+    def encode_attributes(self):
+        train_attr = self.train_attr_df.as_matrix()
+        dev_attr = self.dev_attr_df.as_matrix()
+        test_attr = self.test_attr_df.as_matrix()
+        return self.get_encodings(train_attr), self.get_encodings(dev_attr), self.get_encodings(test_attr)
+
+    def get_encodings(self, mat):
+        mat_encoded = np.zeros_like(mat, dtype = np.int32)
+        for i,row in enumerate(mat):
+            for j, attr in enumerate(row):
+                mat_encoded[i, j] = self.attributes_t2i[attr]
+        return mat_encoded
+
     def load_data(self,max_len=None, language_model=False):
         '''
         Loads the data from the pickle file. Called at initialization 
@@ -303,7 +346,7 @@ class DataHelper():
         data is of form [sentences, labels]
         return [(sentences[0], labels[0]), (sentences[1], labels[1]) ...]
         """
-        assert len(data) == 2, ("data must be of form [examples, labels]")
+        assert len(data) == 2 or len(data) ==3, ("data must be of form [examples, labels]")
         data_as_list = []
         for data_tup in zip(*data):       
             data_as_list.append(data_tup)
@@ -355,7 +398,7 @@ class DataHelper():
         return ret  
 
 if __name__ == "__main__": 
-    du =DataHelper(5, language_model = True)
+    du =DataHelper(language_model = True)
     train = du.train_data
     print(train)
     #print(train["region_2"].as_matrix())
