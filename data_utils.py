@@ -282,6 +282,13 @@ class DataHelper():
             data_frame = data_frame.fillna(NAN_TOK)
             if language_model:
                 data_frame = process_frame_for_language_model(data_frame)
+                length = data_frame.shape[0]
+                if length%32 != 0:
+                    diff = length%32
+                    print(length)
+                    print(diff)
+                    data_frame = data_frame[: length-diff]
+                assert data_frame.shape[0]%32 == 0,("data_frame is not multiple of batch size:", data_frame.shape[0])
             if max_len == None: loaded_data.append(data_frame)
             else: loaded_data.append(data_frame[:max_len])
         return loaded_data
