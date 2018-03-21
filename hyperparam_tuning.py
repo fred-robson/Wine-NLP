@@ -75,6 +75,10 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
             session.run(init)
             best_result_dev,corresponding_train,num_epochs = model.fit(session, saver, train_raw, dev_raw,test_raw)
             print(best_result_dev)
+            if label_helper.version == "LM":
+                output_train = model.output(session, train_raw)
+                output_dev = model.output(session, dev_raw)
+                output_test = model.output(session, test_raw)
 
     return best_result_dev,corresponding_train,num_epochs
 

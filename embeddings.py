@@ -158,7 +158,6 @@ class embedding_helper():
         sub_ind = 0
         for tok in tqdm(sorted(list(vocab))):
             ind = self.embedding_tokens_2_ind.get(tok.lower(), self.unk_indice)
-            if tok is START_TOK: print("YEEEEEEEEEEEEEEEEE", self.unk_indice)
             if ind != self.unk_indice:
                 sub_embedding_matrix.append(self.embedding_matrix[ind])
                 sub_embedding_tokens_2_ind[tok] = sub_ind

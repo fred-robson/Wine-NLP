@@ -67,6 +67,7 @@ class Config:
         self.desc_output = self.output_path+"desc.pkl"
         self.desc_txt = self.output_path+"desc.txt"
         self.epochs_csv = self.output_path+"epochs.csv"
+        self.gen_output = self.output_path+"generations.txt"
 
 
 def pad_sequences(data, max_length, many2one = False):
