@@ -83,7 +83,9 @@ def train_NB(train_x,train_y,du,model,batch_size=1000):
     Trains a NB model on train_x,train_y using naive bayes model NB 
     '''
     Y_classes = set()
-    for y in train_y: Y_classes|=set([y])
+    
+    for y in train_y: 
+        Y_classes|=set([y])
     Y_classes = list(Y_classes)
 
     
@@ -150,8 +152,15 @@ def main(limit,save,load):
     nb = naive_bayes.MultinomialNB
 
     for Y_cat in Y_cats: 
-        X_datasets,Y_datasets = du.filtered_on_missing_indices(Y_cat)
-        if Y_cat == "price": Y_datasets = du.discretize(Y_datasets)
+        X,Y = du.get_filtered_data(Y_cat)
+        X_datasets = [X.X_train,X.X_dev,X.X_test]
+        Y_datasets_list = [Y.train_labels,Y.dev_labels,Y.test_labels]
+        Y_datasets = []
+        for Y_ds in Y_datasets_list:
+            Y_datasets.append([y[0] for y in Y_ds])
+        print (Y_datasets)
+    
+
         
         print ("Category:",Y_cat)
         print ("------------------------")
