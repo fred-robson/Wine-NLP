@@ -20,7 +20,7 @@ OUTPUT_PATH = "results/hyper_parameters/"
 FILE_NAME = "hyper_parameters_tuning ({:%Y%m%d_%H%M%S}).csv".format(datetime.now())
 MODEL_NAME = "lstm/"
 POSS_LR = [0.01]
-POSS_EPOCHS = [1]
+POSS_EPOCHS = [3]
 POSS_HIDDEN_SIZE = [300]
 
 RESULT_INDEX = 0 #{0:Accuracy,1:F1_M,2:F1_W}
@@ -87,6 +87,8 @@ def run_model(config,data_helper,label_helper,emb_helper,limit, y_cat=None):
                 for i, batch in enumerate(minibatches(train_raw, config.batch_size, shuffle=False)):
                     _, _, attr = zip(*batch)
                     attr = np.array(attr)
+                    if attr.shape[0] > config.batch_size:
+                        attr = attr[:config.batch_size]
                     output_train = model.generate(session, attr)
                     if len(outputs.shape) <2:
                         outputs=output_train

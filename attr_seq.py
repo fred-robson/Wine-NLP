@@ -96,6 +96,7 @@ class Attribute2SequenceModel(RNNModel):
         embeddings = tf.reduce_sum(embeddings, -1)
 
         state_per_layer_list = tf.unstack(self.init_state_placeholder, axis=0)
+        #state_per_layer_list = tf.Print(state_per_layer_list, [tf.shape(state_per_layer_list)])
 
         embeddings = tuple([tf.nn.rnn_cell.LSTMStateTuple(tf.divide(tf.add(embeddings, state_per_layer_list[i][0]), 2.0),tf.divide(tf.add( embeddings, state_per_layer_list[i][1]),2.0 )) for i in range(self.config.n_layers)])
         return embeddings
@@ -307,7 +308,7 @@ class Attribute2SequenceModel(RNNModel):
     
     
     def train_on_batch(self, sess,  inputs_batch, labels_batch, mask_batch, attributes):
-        self.config.current_batch_size = inputs_batch.shape[0]
+
         feed = self.create_feed_dict(inputs_batch, attributes,labels_batch=labels_batch, mask_batch=mask_batch,
                                      dropout=self.config.dropout)
         #summary, _, loss = sess.run([merged_summaries, self.train_op, self.loss], feed_dict=feed)
