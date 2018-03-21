@@ -183,7 +183,9 @@ class Attribute2SequenceModel(RNNModel):
 
         for i in range(self.config.max_length):
             current_state,preds = sess.run([self.current_state,self.pred], feed_dict=feed)
-            preds = softmax(preds)
+            pred_placeholder = tf.placeholder(tf.float32, shape=(self.config.batch_size, None, self.config.n_classes))
+            preds = sess.run(tf.nn.softmax(pred_placeholder, axis=-1), feed_dict={pred_placeholder:preds})
+            print(preds.shape)
             preds = preds_over_batch(preds)
             preds = np.expand_dims(preds, -1)
             preds = np.expand_dims(preds, -1)
@@ -303,7 +305,8 @@ class Attribute2SequenceModel(RNNModel):
         '''
         feed = self.create_feed_dict(inputs_batch=inputs_batch, attributes=attribute_batch, mask_batch=mask_batch)
         predictions = sess.run(self.pred, feed_dict=feed)
-        predictions = softmax(predictions)
+        pred_placeholder = tf.placeholder(tf.float32, shape=(self.config.batch_size, None, self.config.n_classes))
+        predictions = sess.run(tf.nn.softmax(pred_placeholder, axis=-1), feed_dict={pred_placeholder:predictions})
         return predictions
     
     
